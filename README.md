@@ -13,7 +13,7 @@ For instance, if you place the main folder on your desktop, the `here()` command
 [1] "C: Users/emberley/Desktop/Myrf_iCKO_OpicNerve"
 
 + Myrf_iCKO_OpicNerve
-  ++ Code/
++   Code/
     ++ Pre-processing
     ++ Analysis
     ++ Figures
