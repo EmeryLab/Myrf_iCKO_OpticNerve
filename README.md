@@ -13,20 +13,20 @@ For instance, if you place the main folder on your desktop, the `here()` command
 [1] "C: Users/emberley/Desktop/Myrf_iCKO_OpicNerve"
 
 + Myrf_iCKO_OpicNerve
-+   Code/
-    ++ Pre-processing
-    ++ Analysis
-    ++ Figures
-  ++ GEO/
-    ++ Cell Ranger/
-       ++ PLP Cre Negative
-       ++ PLP Cre Positive
-       ++ Sox10 Cre Negative
-       ++ Sox10 Cre Positive
-   ++ ON dataset/
-   ++ Outputs/
-   ++ .here
-   ++ Setup.RMD
-   ++ ReadMe.md
+    * Code/
+        * Pre-processing
+        * Analysis
+        * Figures
+  * GEO/
+    * Cell Ranger/
+       * PLP Cre Negative
+       * PLP Cre Positive
+       * Sox10 Cre Negative
+       * Sox10 Cre Positive
+   * ON dataset/
+   * Outputs/
+   * .here
+   * Setup.RMD
+   * ReadMe.md
    
 Step 3: 
