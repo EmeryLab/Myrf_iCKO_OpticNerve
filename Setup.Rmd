@@ -37,23 +37,27 @@ here()
 ONdataset <- "ON dataset"
 GEO <- "GEO"
 CellRanger <-"Cell Ranger"
-Sox10Control <- "Sox10 Cre Negative"
-PLPControl <- "PLP Cre Negative"
-Sox10Cre <- "Sox10 Cre Positive"
-PLPCre <- "PLP Cre Positive"
+MS10 <- "MS10"
+MP <- "MP"
 Outputs <- "Outputs"
+QC <- "Quality Assurance (QC)"
+Intermediate <- "Intemediate Objects"
+Subclusters <- "Subclusters"
+
 
 #Create Folders for Optic Nerve (ON) Dataset
 if (!dir.exists(here(ONdataset))) {dir.create(here(ONdataset))}
 #Create Folders for Sox10 Cre Postive and Negative and PLP Cre Positive and Negative GEO Datasets
 if (!dir.exists(here(GEO))) {dir.create(here(GEO))}
 if (!dir.exists(here("GEO", CellRanger))) {dir.create(here("GEO", CellRanger))}
-if (!dir.exists(here("GEO", "CellRanger", Sox10Control))) {dir.create(here("GEO", "Cell Ranger", Sox10Control))}
-if (!dir.exists(here("GEO", "CellRanger", PLPControl))) {dir.create(here("GEO", "Cell Ranger", PLPControl))}
-if (!dir.exists(here("GEO", "CellRanger", Sox10Cre))) {dir.create(here("GEO", "Cell Ranger", Sox10Cre))}
-if (!dir.exists(here("GEO", "CellRanger", PLPCre))) {dir.create(here("GEO", "Cell Ranger", PLPCre))}
-#Create Outputs Folder
+if (!dir.exists(here("GEO", "CellRanger", MS10))) {dir.create(here("GEO", "Cell Ranger", MS10))}
+if (!dir.exists(here("GEO", "CellRanger", MP))) {dir.create(here("GEO", "Cell Ranger", MP))}
+#Create Outputs Folder and Outputs Subfolder
 if (!dir.exists(here(Outputs))) {dir.create(here(Outputs))}
+if (!dir.exists(here("Outputs", QC))) {dir.create(here("Outputs", QC))}
+if (!dir.exists(here("Outputs", Subclusters))) {dir.create(here("Outputs", Subclusters))}
+if (!dir.exists(here("Outputs", Intermediate))) {dir.create(here("Outputs", Intermediate))}
+
 rm(list = ls())
 ```
 
