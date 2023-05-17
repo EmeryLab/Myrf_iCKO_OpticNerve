@@ -40,7 +40,7 @@ CellRanger <-"Cell Ranger"
 MS10 <- "MS10"
 MP <- "MP"
 Outputs <- "Outputs"
-QC <- "Quality Assurance (QC)"
+QC <- "QC Objects"
 Intermediate <- "Intemediate Objects"
 Subclusters <- "Subclusters"
 
