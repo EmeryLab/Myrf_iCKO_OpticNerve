@@ -1,0 +1,387 @@
+---
+title: "Optic Nerve Combined: Microglia"
+author: "Katie Emberley, Jonathan Nelson, and Jeremiah Reyes"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document: 
+    toc: yes
+    toc_depth: 3
+    toc_float: true
+    number_sections: yes
+    theme: bootstrap
+    df_print: paged
+    code_folding: hide
+    highlight: pygments
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Load Packages
+```{r echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+
+if (!require("knitr")) {install.packages("knitr"); require("knitr")}
+if (!require("dplyr")) {install.packages("dplyr"); require("dplyr")}
+if (!require("stringr")) {install.packages("stringr"); require("stringr")}
+if(!require("SeuratData")){install.packages("SeuratData"); require("SeurateData")}
+if (!require("Seurat")) {install.packages("Seurat"); require("Seurat")}
+if (!require("sctransform")) {install.packages("sctransform"); require("sctransform")}
+if (!require("patchwork")) {install.packages("patchwork"); require("patchwork")}
+if (!require("ggplot2")) {install.packages("ggplot2"); require("ggplot2")}
+if (!require("tidyverse")) {install.packages("tidyverse"); require("tidyverse")}
+if (!require("openxlsx")) {install.packages("openxlsx"); require("openxlsx")}
+if (!require("readxl")) {install.packages("readxl"); require("readxl")}
+if (!require("data.table")) {install.packages("data.table"); require("data.table")}
+if (!require("here")) {install.packages("here"); require("here")}
+if (!require("writexl")) {install.packages("writexl"); require("writexl")}
+
+if (!require("AnnotationHub")) {BiocManager::install('AnnotationHub'); require("AnnotationHub")}
+if (!require("enrichplot")) {BiocManager::install('enrichplot'); require("enrichplot")}
+if (!require("ggupset")) {install.packages("ggupset"); require("ggupset")}
+if (!require("tidyverse")) {install.packages("tidyverse"); require("tidyverse")}
+
+if(!require("NatParksPalettes")){(install.packages("NatParksPalettes")); require("NatParksPalettes")}
+```
+
+# Loading Microglia Cells from R
+These files are post-Doublet Removal individually and post-combined Rowitch Lab.
+```{r echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+ON_MG <- readRDS(here("Outputs","Subclusters","ON_Microglia.rds"))
+
+#Change the levels of the object so that combined.genotype- is always on the right side of graphs and replicates are in appropriate orer
+combined.genotype_levels <- c("Control", "Sox10 Cre+", "PLP Cre+")
+Replicate_levels <- c("GDMP_ON_1", "GDMP_ON_2", "GDMS_ON_3", "GDMS_ON_4", "GDMP_ON_5", "GDMP_ON_6", "GDMS_ON_8")
+ON_MG@meta.data$combined.genotype <- factor((ON_MG@meta.data$combined.genotype), levels= combined.genotype_levels)
+ON_MG@meta.data$Replicate <- factor((ON_MG@meta.data$Replicate), levels= Replicate_levels)
+
+DimPlot(ON_MG, reduction = "umap", label = TRUE)
+
+DimPlot(ON_MG, reduction = "umap", group.by = "Replicate",
+        cols=natparks.pals("Olympic", n=10))
+
+DimPlot(ON_MG, reduction = "umap", group.by = "combined.genotype", cols=natparks.pals("Yellowstone"))
+
+table(Idents(ON_MG))
+
+table(Idents(ON_MG), ON_MG$Replicate)
+
+table(Idents(ON_MG), ON_MG$combined.genotype)
+
+```
+
+# Principal Component Analysis
+```{r echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+DefaultAssay(ON_MG) <- "integrated"
+ON_MG <- RunPCA(ON_MG, verbose = TRUE)
+ElbowPlot(ON_MG, ndims = 50)
+```
+
+# Reclustering the Microglia
+```{r echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+ON_MG <- RunPCA(ON_MG, verbose = FALSE)
+ON_MG <- RunUMAP(ON_MG, dims = 1:8)
+ 
+ON_MG <- FindNeighbors(ON_MG, reduction = "pca", dims = 1:8)
+ON_MG <- FindClusters(ON_MG, resolution = 0.2)
+
+# UMAP with clusters labeled; 8 dims and 0.1 resolution
+DimPlot(ON_MG, reduction = "umap", label = TRUE)
+
+# UMAP grouped by replicate
+DimPlot(ON_MG, reduction = "umap", group.by = "Replicate", 
+        cols=natparks.pals("Olympic", n=10))
+
+# UMAP grouped by- and split by- combined.genotype
+DefaultAssay(ON_MG) = "RNA"
+DimPlot(ON_MG, reduction = "umap", group.by = "combined.genotype", cols=natparks.pals("Yellowstone"))
+DimPlot(ON_MG, reduction = "umap", split.by = "combined.genotype", label = T)
+
+# Number of Nuclei per Sex, Replicate, or combined.genotype by cluster
+table(Idents(ON_MG), ON_MG$Sex)
+table(Idents(ON_MG), ON_MG$Replicate)
+table(Idents(ON_MG), ON_MG$combined.genotype) 
+```
+
+# Prop Table Visualization
+```{r echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+#combined.genotype Prop Table
+t2 <- table(Idents(ON_MG), ON_MG$combined.genotype)
+prop.t2 <- prop.table(t2, margin = 2)
+t2 <- as.data.frame(t2)
+colnames(t2) <- c('Cell_type', 'combined.genotype', 'Frequency')
+
+prop.t2
+
+ggplot(t2,
+       aes(fill=Cell_type, y=Frequency, x=combined.genotype)) + 
+  geom_bar(width=1, position="fill", stat = "identity", fun.y = "mean", colour="black") +
+  theme_classic()
+
+
+#Replicate Prop Table
+t1 <- table(Idents(ON_MG), ON_MG$Replicate)
+prop.t1 <- prop.table(t1, margin = 2)
+t1 <- as.data.frame(t1)
+colnames(t1) <- c('Cell_type', 'Rep', 'Frequency')
+
+prop.t1
+
+ggplot(t1,
+       aes(fill=Cell_type, y=Frequency, x=Rep)) + 
+  geom_bar(position="fill", stat = "identity", fun.y = "mean", colour="black") +
+  theme_classic()
+```
+
+# Cluster Identification
+## Heatmap of DEGs
+```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center'}
+
+DefaultAssay(ON_MG) = "RNA"
+
+ON_MG.markers <- FindAllMarkers(ON_MG, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
+
+ON_MG.markers %>%
+  group_by(cluster) %>%
+  top_n(n = 10, wt = avg_log2FC) -> top10
+
+
+DefaultAssay(ON_MG) <- "SCT"
+
+DoHeatmap(ON_MG, features = top10$gene, size = 3) + NoLegend() + theme(axis.text.y = element_text(size = 5))
+```
+
+## Combine Clusters 0 and 5
+```{r}
+ON_MG@meta.data <- ON_MG@meta.data %>% mutate(combined.clusters = dplyr::case_when(
+  seurat_clusters == "0" ~ "0",
+  seurat_clusters == "1" ~ "1",
+  seurat_clusters == "2" ~ "2",
+  seurat_clusters == "3" ~ "3",
+  seurat_clusters == "4" ~ "4",
+  seurat_clusters == "5" ~ "0"))
+
+# Change active ident to the new column with the names
+ON_MG <- SetIdent(ON_MG, value = ON_MG@meta.data$combined.clusters)
+
+DimPlot(ON_MG, reduction = "umap", label = T)
+
+```
+
+### Heatmap of DEGs
+DEGs are not affected by combining clusters 0 and 5.
+```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center'}
+
+DefaultAssay(ON_MG) = "RNA"
+
+ON_MG.markers <- FindAllMarkers(ON_MG, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
+
+ON_MG.markers %>%
+  group_by(cluster) %>%
+  top_n(n = 10, wt = avg_log2FC) -> top10
+
+
+DefaultAssay(ON_MG) <- "SCT"
+
+DoHeatmap(ON_MG, features = top10$gene, size = 3) + NoLegend() + theme(axis.text.y = element_text(size = 5))
+```
+
+### Prop Table Visualization
+```{r echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+#combined.genotype Prop Table
+t2 <- table(Idents(ON_MG), ON_MG$combined.genotype)
+prop.t2 <- prop.table(t2, margin = 2)
+t2 <- as.data.frame(t2)
+colnames(t2) <- c('Cell_type', 'combined.genotype', 'Frequency')
+
+prop.t2
+
+ggplot(t2,
+       aes(fill=Cell_type, y=Frequency, x=combined.genotype)) + 
+  geom_bar(width=1, position="fill", stat = "identity", fun.y = "mean", colour="black") +
+  theme_classic()
+
+
+#Replicate Prop Table
+t1 <- table(Idents(ON_MG), ON_MG$Replicate)
+prop.t1 <- prop.table(t1, margin = 2)
+t1 <- as.data.frame(t1)
+colnames(t1) <- c('Cell_type', 'Rep', 'Frequency')
+
+prop.t1
+
+ggplot(t1,
+       aes(fill=Cell_type, y=Frequency, x=Rep)) + 
+  geom_bar(position="fill", stat = "identity", fun.y = "mean", colour="black") +
+  theme_classic()
+```
+
+## Save and Load Subclustered MG object
+```{r}
+saveRDS(ON_MG, file = here("Outputs","Subclusters", "Microglia_Subclustering.rds"))
+#ON_MG <- readRDS(here("Outputs","Subclusters", "Microglia_Subclustering.rds"))
+```
+
+## Genes of Interest
+### Homeostatic genes may decrease in disease
+```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center', fig.height= 6, fig.width = 5}
+DefaultAssay(ON_MG) <- "RNA"
+
+# homeostatic genes (may downregulated in disease)
+VlnPlot(ON_MG, "P2ry12") +
+FeaturePlot(ON_MG, "P2ry12", label = TRUE) #downregulated in inflammation
+
+VlnPlot(ON_MG, "Fcrls") +
+FeaturePlot(ON_MG, "Fcrls", label = TRUE)
+
+VlnPlot(ON_MG, "Siglech") +
+FeaturePlot(ON_MG, "Siglech", label = TRUE)
+
+VlnPlot(ON_MG, "Sall1") +
+FeaturePlot(ON_MG, "Sall1", label = TRUE)
+
+VlnPlot(ON_MG, "Hexb") +
+FeaturePlot(ON_MG, "Hexb", label = TRUE)
+
+```
+
+### Monocyte derived Microglia 
+none in this dataset
+Ly6c2, Ccr2, Anxa8, Nr4a1
+```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center', fig.height= 6, fig.width = 5}
+DefaultAssay(ON_MG) <- "RNA"
+
+# Monocyte derived Microglia -- none of the MG in this subset are monocyte derived
+VlnPlot(ON_MG, "Plac8") +
+FeaturePlot(ON_MG, "Plac8", label = TRUE)
+
+```
+
+### CNS associated macrophages
+Few in the homeostatic population
+```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center', fig.height= 6, fig.width = 5}
+DefaultAssay(ON_MG) <- "RNA"
+
+# CNS Associated Macrophages (CAMs) 
+VlnPlot(ON_MG, "Mrc1") +
+FeaturePlot(ON_MG, "Mrc1", label = TRUE) #activated CAM marker
+
+VlnPlot(ON_MG, "Lyve1") +
+FeaturePlot(ON_MG, "Lyve1", label = TRUE)
+
+VlnPlot(ON_MG, "Cd163") +
+FeaturePlot(ON_MG, "Cd163", label = TRUE)
+```
+
+### PAM (phagocytic associated microglia)
+Microglia loaded with lipids (https://www.sciencedirect.com/science/article/pii/S258900422300665X?via%3Dihub)
+```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center', fig.height= 6, fig.width = 5}
+DefaultAssay(ON_MG) <- "RNA"
+
+VlnPlot(ON_MG, "Trem2") +
+FeaturePlot(ON_MG, "Trem2", label = TRUE) 
+
+VlnPlot(ON_MG, "Apoe") +
+FeaturePlot(ON_MG, "Apoe", label = TRUE) 
+
+VlnPlot(ON_MG, "Ctsb") +
+FeaturePlot(ON_MG, "Ctsb", label = TRUE) 
+
+VlnPlot(ON_MG, "Mertk") +
+FeaturePlot(ON_MG, "Mertk", label = TRUE) 
+
+VlnPlot(ON_MG, "Tlr2") +
+FeaturePlot(ON_MG, "Tlr2", label = TRUE) 
+```
+
+
+### MAM (myelination associated microglia)
+(https://www.sciencedirect.com/science/article/pii/S258900422300665X?via%3Dihub)
+```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center', fig.height= 6, fig.width = 5}
+DefaultAssay(ON_MG) <- "RNA"
+
+VlnPlot(ON_MG, "Mobp") +
+FeaturePlot(ON_MG, "Mobp", label = TRUE) 
+
+VlnPlot(ON_MG, "Fa2h") +
+FeaturePlot(ON_MG, "Fa2h", label = TRUE) 
+
+VlnPlot(ON_MG, "Myrf") +
+FeaturePlot(ON_MG, "Myrf", label = TRUE) 
+
+VlnPlot(ON_MG, "Ndrg1") +
+FeaturePlot(ON_MG, "Ndrg1", label = TRUE) 
+```
+
+### Upregulated genes in disease
+```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center', fig.height= 6, fig.width = 5}
+DefaultAssay(ON_MG) <- "RNA"
+
+VlnPlot(ON_MG, "Apoe") +
+FeaturePlot(ON_MG, "Apoe", label = TRUE) 
+
+VlnPlot(ON_MG, "Spp1") +
+FeaturePlot(ON_MG, "Spp1", label = TRUE) # osteopontin --> ECM protein MG survival
+
+VlnPlot(ON_MG, "Lyz2") +  
+FeaturePlot(ON_MG, "Lyz2", label = TRUE) # Intracellular sorting MHC complex II
+
+VlnPlot(ON_MG, "Cd74") +  
+FeaturePlot(ON_MG, "Cd74", label = TRUE) # Intracellular sorting MHC complex II
+```
+
+### DAM specific genes
+```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center', fig.height= 6, fig.width = 5}
+DefaultAssay(ON_MG) <- "RNA"
+
+VlnPlot(ON_MG, "Cd34") +
+FeaturePlot(ON_MG, "Cd34", label = TRUE) 
+
+VlnPlot(ON_MG, "Cd74") +
+FeaturePlot(ON_MG, "Cd74", label = TRUE) 
+
+# lipid metabolish amd phagosome
+VlnPlot(ON_MG, "Apoe") +
+FeaturePlot(ON_MG, "Apoe", label = TRUE) 
+
+VlnPlot(ON_MG, "Lyz2") +
+FeaturePlot(ON_MG, "Lyz2", label = TRUE) 
+
+VlnPlot(ON_MG, "Cd63") +
+FeaturePlot(ON_MG, "Cd63", label = TRUE) 
+
+# Cathepsins
+VlnPlot(ON_MG, "Ctsb") +
+FeaturePlot(ON_MG, "Ctsb", label = TRUE) 
+
+VlnPlot(ON_MG, "Ctss") +
+FeaturePlot(ON_MG, "Ctss", label = TRUE) 
+
+VlnPlot(ON_MG, "Ctsz") +
+FeaturePlot(ON_MG, "Ctsz", label = TRUE) 
+```
+
+### IFN signaling genes
+Very small population that seems to have a handful of these genes. Strongly PLP Cre+ Cluster 0
+```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center', fig.height= 6, fig.width = 5}
+DefaultAssay(ON_MG) <- "RNA"
+
+VlnPlot(ON_MG, "Ifit3b", split.by = "combined.genotype") +
+FeaturePlot(ON_MG, "Ifit3b", label = TRUE) 
+
+VlnPlot(ON_MG, "Ifit3", split.by = "combined.genotype") +
+FeaturePlot(ON_MG, "Ifit3", label = TRUE) 
+
+VlnPlot(ON_MG, "Irf7", split.by = "combined.genotype") +
+FeaturePlot(ON_MG, "Irf7", label = TRUE) 
+
+VlnPlot(ON_MG, "Usp18", split.by = "combined.genotype") +
+FeaturePlot(ON_MG, "Usp18", label = TRUE) 
+```
+
+# Session Info
+```{r echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+
+sessionInfo()
+```
+

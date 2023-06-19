@@ -1,0 +1,447 @@
+---
+title: "Optic Nerve Combined: Microglia DEG Pathway Analysis"
+author: "Katie Emberley, Jonathan Nelson, and Jeremiah Reyes"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document: 
+    toc: yes
+    toc_depth: 3
+    toc_float: true
+    number_sections: yes
+    theme: bootstrap
+    df_print: paged
+    code_folding: hide
+    highlight: pygments
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Load Packages
+```{r echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+if (!require("knitr")) {install.packages("knitr"); require("knitr")}
+if (!require("dplyr")) {install.packages("dplyr"); require("dplyr")}
+if (!require("stringr")) {install.packages("stringr"); require("stringr")}
+if(!require("SeuratData")){install.packages("SeuratData"); require("SeurateData")}
+if (!require("Seurat")) {install.packages("Seurat"); require("Seurat")}
+if (!require("sctransform")) {install.packages("sctransform"); require("sctransform")}
+if (!require("patchwork")) {install.packages("patchwork"); require("patchwork")}
+if (!require("ggplot2")) {install.packages("ggplot2"); require("ggplot2")}
+if (!require("EnhancedVolcano")) {BiocManager::install('EnhancedVolcano'); require("EnhancedVolcano")}
+if (!require("DESeq2")) {BiocManager::install('DESeq2'); require("DESeq2")}
+if (!require("tidyverse")) {install.packages("tidyverse"); require("tidyverse")}
+if (!require("RColorBrewer")) {install.packages("RColorBrewer"); require("RColorBrewer")}
+if (!require("car")) {install.packages("car"); require("car")}
+if (!require("openxlsx")) {install.packages("openxlsx"); require("openxlsx")}
+if (!require("readxl")) {install.packages("readxl"); require("readxl")}
+if (!require("ggrepel")) {install.packages("ggrepel"); require("ggrepel")}
+if (!require("gghighlight")) {install.packages("gghighlight"); require("gghighlight")}
+if (!require("ggpmisc")) {install.packages("ggpmisc"); require("ggpmisc")}
+if (!require("data.table")) {install.packages("data.table"); require("data.table")}
+if (!require("here")) {install.packages("here"); require("here")}
+if (!require("writexl")) {install.packages("writexl"); require("writexl")}
+
+if (!require("AnnotationHub")) {BiocManager::install('AnnotationHub'); require("AnnotationHub")}
+if (!require("enrichplot")) {BiocManager::install('enrichplot'); require("enrichplot")}
+if (!require("ggupset")) {install.packages("ggupset"); require("ggupset")}
+if (!require("tidyverse")) {install.packages("tidyverse"); require("tidyverse")}
+if (!require("RColorBrewer")) {install.packages("RColorBrewer"); require("RColorBrewer")}
+if (!require("org.Mm.eg.db")) {BiocManager::install('org.Mm.eg.db'); require("org.Mm.eg.db")}
+if (!require("tibble")) {install.packages("tibble"); require("tibble")} # rownames_to_column
+
+if(!require("ggforce")){install.packages("ggforce"); require("ggforce")}
+if(!require("graphlayouts")){install.packages("graphlayouts"); require("graphlayouts")}
+
+if (!require("clusterProfiler")) {install.packages("clusterProfiler"); require("clusterProfiler")} # bitr
+
+
+if(!require("NatParksPalettes")){(install.packages("NatParksPalettes")); require("NatParksPalettes")}
+
+# Required for lineage tracing
+if (!require("SeuratWrappers")) {install.packages("SeuratWrappers"); require("SeuratWrappers")}
+if (!require("Matrix")) {install.packages("Matrix"); require("Matrix")}
+if (!require("Signac")) {install.packages("Signac"); require("Signac")}
+if (!require("SeuratData")) {install.packages("SeuratData"); require("SeuratData")}
+if (!require("monocle3")) {install.packages("monocle3"); require("monocle3")}
+
+```
+
+# Load Subclustered MG object
+```{r}
+ON_MG <- readRDS(here("Outputs","Subclusters", "Microglia_Subclustering.rds"))
+```
+
+# Gene Set Enrichment Analysis for Clusters
+ClusterProfiler paper: G Yu, LG Wang, Y Han, QY He. clusterProfiler: an R package for comparing biological themes among gene clusters. OMICS: A Journal of Integrative Biology 2012, 16(5):284-287. doi:[10.1089/omi.2011.0118](http://dx.doi.org/10.1089/omi.2011.0118)
+
+ClusterProfiler tutorial: https://bioc.ism.ac.jp/packages/3.7/bioc/vignettes/enrichplot/inst/doc/enrichplot.html
+
+## Reload RData for Cluster Defining DEGs and Change Object Names
+```{r}
+load(file = here("Outputs","DEGs","Microglia Subclustering DEGs", "Subclustering Microglia Cluster Defining DEGs.RData"))
+Cluster0<-`0`
+Cluster1<-`1`
+Cluster2<-`2`
+Cluster3<-`3`
+Cluster4<-`4`
+
+rm(`0`,`1`,`2`,`3`,`4`)
+```
+
+## Crude Pathways Cluster 0
+```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center', fig.width = 6, fig.height = 8}
+
+head(Cluster0, n = 50)
+
+ENTREZ_list <- bitr(geneID = Cluster0$SYMBOL,
+                    fromType = "SYMBOL",
+                    toType = "ENTREZID",
+                    OrgDb = "org.Mm.eg.db"
+                    )
+
+markers <-  ENTREZ_list %>% inner_join(Cluster0, by = "SYMBOL")
+
+# Removing genes that are not statistically significant. 
+markers <-  markers %>% dplyr::filter(p_val_adj < 0.05)
+head(markers, n = 50)
+
+# Upregulated Genes in Homeostatic MG (0)
+
+pos.markers <-  markers %>% dplyr::filter(avg_log2FC > 0) %>%  arrange(desc(abs(avg_log2FC)))
+head(pos.markers, n = 50)
+
+pos.ranks <- pos.markers$ENTREZID[abs(markers$avg_log2FC) > 0.3219]
+head(pos.ranks)
+
+pos_go <- enrichGO(pos.ranks,
+                OrgDb = "org.Mm.eg.db",
+                ont="all",
+                readable=TRUE)
+
+dotplot(pos_go, split="ONTOLOGY") + 
+ facet_grid(ONTOLOGY~., scale="free") + 
+ ggtitle("Cluster 0 MG Upregulated Gene Pathways") + 
+ theme(plot.title = element_text(hjust = 0.5))
+
+
+pos_go.BP <- enrichGO(pos.ranks,
+                OrgDb = "org.Mm.eg.db",
+                ont ="BP",
+                readable=TRUE)
+
+barplot(pos_go.BP, showCategory=20) +
+  ggtitle("Cluster 0 MG Upregulated Gene Pathways") + 
+  theme(axis.text.y = element_text(size = 12))
+```
+
+## Crude Pathways for Cluster 1
+```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center', fig.width = 6, fig.height = 8}
+
+head(Cluster1, n = 50)
+
+ENTREZ_list <- bitr(geneID = Cluster1$SYMBOL,
+                    fromType = "SYMBOL",
+                    toType = "ENTREZID",
+                    OrgDb = "org.Mm.eg.db"
+                    )
+
+markers <-  ENTREZ_list %>% inner_join(Cluster1, by = "SYMBOL")
+
+# Removing genes that are not statistically significant. 
+markers <-  markers %>% dplyr::filter(p_val_adj < 0.05)
+head(markers, n = 50)
+
+# Upregulated Genes in Disease-Associated Microglia (Cluster1)
+
+pos.markers <-  markers %>% dplyr::filter(avg_log2FC > 0) %>%  arrange(desc(abs(avg_log2FC)))
+head(pos.markers, n = 50)
+
+pos.ranks <- pos.markers$ENTREZID[abs(markers$avg_log2FC) > 0.3219]
+head(pos.ranks)
+
+pos_go <- enrichGO(pos.ranks,
+                OrgDb = "org.Mm.eg.db",
+                ont="all",
+                readable=TRUE)
+
+dotplot(pos_go, split="ONTOLOGY") + 
+ facet_grid(ONTOLOGY~., scale="free") + 
+ ggtitle("Cluster 1 MG Upregulated Defining Pathways") + 
+ theme(plot.title = element_text(hjust = 0.5))
+
+
+
+pos_go.BP <- enrichGO(pos.ranks,
+                OrgDb = "org.Mm.eg.db",
+                ont ="BP",
+                readable=TRUE)
+
+barplot(pos_go.BP, showCategory=20) +
+  ggtitle("CLuster 1 Upregulated Defining Pathways") + 
+  theme(axis.text.y = element_text(size = 12))
+
+
+# Downregulated Genes in Homeostatic Microglia (Cluster 1)
+
+neg.markers <-  markers %>% dplyr::filter(avg_log2FC < 0) %>%  arrange(desc(abs(avg_log2FC)))
+head(neg.markers, n = 50)
+
+neg.ranks <- neg.markers$ENTREZID[abs(markers$avg_log2FC) > 0.3219]
+head(neg.ranks)
+
+neg_go <- enrichGO(neg.ranks,
+                OrgDb = "org.Mm.eg.db",
+                ont="all",
+                readable=TRUE)
+
+dotplot(neg_go, split="ONTOLOGY") + 
+  facet_grid(ONTOLOGY~., scale="free") + 
+  ggtitle("CLuster 1 Downregulated Defining Pathways") + 
+  theme(plot.title = element_text(hjust = 0.5))
+
+neg_go.BP <- enrichGO(neg.ranks,
+                OrgDb = "org.Mm.eg.db",
+                ont ="BP",
+                readable=TRUE)
+
+barplot(neg_go.BP, showCategory=20)+
+  ggtitle("Cluster 1 Downregulated Defining Pathways") + 
+  theme(axis.text.y = element_text(size = 12))
+
+```
+
+## Crude Pathways for Cluster 2
+```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center', fig.width = 6, fig.height = 8}
+
+head(Cluster2, n = 50)
+
+ENTREZ_list <- bitr(geneID = Cluster2$SYMBOL,
+                    fromType = "SYMBOL",
+                    toType = "ENTREZID",
+                    OrgDb = "org.Mm.eg.db"
+                    )
+
+markers <-  ENTREZ_list %>% inner_join(Cluster2, by = "SYMBOL")
+
+# Removing genes that are not statistically significant. 
+markers <-  markers %>% dplyr::filter(p_val_adj < 0.05)
+head(markers, n = 50)
+
+# Upregulated Genes in Disease-Associated Microglia (Cluster2)
+
+pos.markers <-  markers %>% dplyr::filter(avg_log2FC > 0) %>%  arrange(desc(abs(avg_log2FC)))
+head(pos.markers, n = 50)
+
+pos.ranks <- pos.markers$ENTREZID[abs(markers$avg_log2FC) > 0.3219]
+head(pos.ranks)
+
+pos_go <- enrichGO(pos.ranks,
+                OrgDb = "org.Mm.eg.db",
+                ont="all",
+                readable=TRUE)
+
+dotplot(pos_go, split="ONTOLOGY") + 
+ facet_grid(ONTOLOGY~., scale="free") + 
+ ggtitle("Cluster 2 Upregulated Defining Pathways") + 
+ theme(plot.title = element_text(hjust = 0.5))
+
+
+
+pos_go.BP <- enrichGO(pos.ranks,
+                OrgDb = "org.Mm.eg.db",
+                ont ="BP",
+                readable=TRUE)
+
+barplot(pos_go.BP, showCategory=20) +
+  ggtitle("Cluster 2 Upregulated Defining Pathways") + 
+  theme(axis.text.y = element_text(size = 12))
+
+
+# Downregulated Genes in Homeostatic Microglia (Cluster 1)
+
+neg.markers <-  markers %>% dplyr::filter(avg_log2FC < 0) %>%  arrange(desc(abs(avg_log2FC)))
+head(neg.markers, n = 50)
+
+neg.ranks <- neg.markers$ENTREZID[abs(markers$avg_log2FC) > 0.3219]
+head(neg.ranks)
+
+neg_go <- enrichGO(neg.ranks,
+                OrgDb = "org.Mm.eg.db",
+                ont="all",
+                readable=TRUE)
+
+dotplot(neg_go, split="ONTOLOGY") + 
+  facet_grid(ONTOLOGY~., scale="free") + 
+  ggtitle("CLuster 2 Downregulated Defining Pathways") + 
+  theme(plot.title = element_text(hjust = 0.5))
+
+neg_go.BP <- enrichGO(neg.ranks,
+                OrgDb = "org.Mm.eg.db",
+                ont ="BP",
+                readable=TRUE)
+
+barplot(neg_go.BP, showCategory=20)+
+  ggtitle("Cluster 2 Downregulated Defining Pathways") + 
+  theme(axis.text.y = element_text(size = 12))
+
+```
+
+## Crude Pathways for Cluster 3
+```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center', fig.width = 6, fig.height = 8}
+
+head(Cluster3, n = 50)
+
+ENTREZ_list <- bitr(geneID = Cluster3$SYMBOL,
+                    fromType = "SYMBOL",
+                    toType = "ENTREZID",
+                    OrgDb = "org.Mm.eg.db"
+                    )
+
+markers <-  ENTREZ_list %>% inner_join(Cluster3, by = "SYMBOL")
+
+# Removing genes that are not statistically significant. 
+markers <-  markers %>% dplyr::filter(p_val_adj < 0.05)
+head(markers, n = 50)
+
+# Upregulated Genes in Disease-Associated Microglia (Cluster3)
+
+pos.markers <-  markers %>% dplyr::filter(avg_log2FC > 0) %>%  arrange(desc(abs(avg_log2FC)))
+head(pos.markers, n = 50)
+
+pos.ranks <- pos.markers$ENTREZID[abs(markers$avg_log2FC) > 0.3219]
+head(pos.ranks)
+
+pos_go <- enrichGO(pos.ranks,
+                OrgDb = "org.Mm.eg.db",
+                ont="all",
+                readable=TRUE)
+
+dotplot(pos_go, split="ONTOLOGY") + 
+ facet_grid(ONTOLOGY~., scale="free") + 
+ ggtitle("Cluster 3 Upregulated Defining Pathways") + 
+ theme(plot.title = element_text(hjust = 0.5))
+
+
+
+pos_go.BP <- enrichGO(pos.ranks,
+                OrgDb = "org.Mm.eg.db",
+                ont ="BP",
+                readable=TRUE)
+
+barplot(pos_go.BP, showCategory=20) +
+  ggtitle("Cluster 3 Upregulated Defining Pathways") + 
+  theme(axis.text.y = element_text(size = 12))
+
+
+# Downregulated Genes in Homeostatic Microglia (Cluster 1)
+
+neg.markers <-  markers %>% dplyr::filter(avg_log2FC < 0) %>%  arrange(desc(abs(avg_log2FC)))
+head(neg.markers, n = 50)
+
+neg.ranks <- neg.markers$ENTREZID[abs(markers$avg_log2FC) > 0.3219]
+head(neg.ranks)
+
+neg_go <- enrichGO(neg.ranks,
+                OrgDb = "org.Mm.eg.db",
+                ont="all",
+                readable=TRUE)
+
+dotplot(neg_go, split="ONTOLOGY") + 
+  facet_grid(ONTOLOGY~., scale="free") + 
+  ggtitle("CLuster 3 Downregulated Defining Pathways") + 
+  theme(plot.title = element_text(hjust = 0.5))
+
+neg_go.BP <- enrichGO(neg.ranks,
+                OrgDb = "org.Mm.eg.db",
+                ont ="BP",
+                readable=TRUE)
+
+barplot(neg_go.BP, showCategory=20)+
+  ggtitle("Cluster 3 Downregulated Defining Pathways") + 
+  theme(axis.text.y = element_text(size = 12))
+
+```
+
+## Crude Pathways for Cluster 4
+```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center', fig.width = 6, fig.height = 8}
+
+head(Cluster4, n = 50)
+
+ENTREZ_list <- bitr(geneID = Cluster4$SYMBOL,
+                    fromType = "SYMBOL",
+                    toType = "ENTREZID",
+                    OrgDb = "org.Mm.eg.db"
+                    )
+
+markers <-  ENTREZ_list %>% inner_join(Cluster4, by = "SYMBOL")
+
+# Removing genes that are not statistically significant. 
+markers <-  markers %>% dplyr::filter(p_val_adj < 0.05)
+head(markers, n = 50)
+
+# Upregulated Genes in Disease-Associated Microglia (Cluster4)
+
+pos.markers <-  markers %>% dplyr::filter(avg_log2FC > 0) %>%  arrange(desc(abs(avg_log2FC)))
+head(pos.markers, n = 50)
+
+pos.ranks <- pos.markers$ENTREZID[abs(markers$avg_log2FC) > 0.3219]
+head(pos.ranks)
+
+pos_go <- enrichGO(pos.ranks,
+                OrgDb = "org.Mm.eg.db",
+                ont="all",
+                readable=TRUE)
+
+dotplot(pos_go, split="ONTOLOGY") + 
+ facet_grid(ONTOLOGY~., scale="free") + 
+ ggtitle("Cluster 4 Upregulated Defining Pathways") + 
+ theme(plot.title = element_text(hjust = 0.5))
+
+
+
+pos_go.BP <- enrichGO(pos.ranks,
+                OrgDb = "org.Mm.eg.db",
+                ont ="BP",
+                readable=TRUE)
+
+barplot(pos_go.BP, showCategory=20) +
+  ggtitle("Cluster 4 Upregulated Defining Pathways") + 
+  theme(axis.text.y = element_text(size = 12))
+
+
+# Downregulated Genes in Homeostatic Microglia (Cluster 1)
+
+neg.markers <-  markers %>% dplyr::filter(avg_log2FC < 0) %>%  arrange(desc(abs(avg_log2FC)))
+head(neg.markers, n = 50)
+
+neg.ranks <- neg.markers$ENTREZID[abs(markers$avg_log2FC) > 0.3219]
+head(neg.ranks)
+
+neg_go <- enrichGO(neg.ranks,
+                OrgDb = "org.Mm.eg.db",
+                ont="all",
+                readable=TRUE)
+
+dotplot(neg_go, split="ONTOLOGY") + 
+  facet_grid(ONTOLOGY~., scale="free") + 
+  ggtitle("CLuster 4 Downregulated Defining Pathways") + 
+  theme(plot.title = element_text(hjust = 0.5))
+
+neg_go.BP <- enrichGO(neg.ranks,
+                OrgDb = "org.Mm.eg.db",
+                ont ="BP",
+                readable=TRUE)
+
+barplot(neg_go.BP, showCategory=20)+
+  ggtitle("Cluster 4 Downregulated Defining Pathways") + 
+  theme(axis.text.y = element_text(size = 12))
+
+```
+
+# Session Info
+```{r echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+
+sessionInfo()
+```
+

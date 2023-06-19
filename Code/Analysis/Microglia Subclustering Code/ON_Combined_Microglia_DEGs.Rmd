@@ -1,0 +1,483 @@
+---
+title: "Optic Nerve Combined: Microglia DEG analysis"
+author: "Katie Emberley, Jonathan Nelson, and Jeremiah Reyes"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document: 
+    toc: yes
+    toc_depth: 3
+    toc_float: true
+    number_sections: yes
+    theme: bootstrap
+    df_print: paged
+    code_folding: hide
+    highlight: pygments
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Load Packages
+```{r echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+
+if (!require("knitr")) {install.packages("knitr"); require("knitr")}
+if (!require("dplyr")) {install.packages("dplyr"); require("dplyr")}
+if (!require("stringr")) {install.packages("stringr"); require("stringr")}
+if(!require("SeuratData")){install.packages("SeuratData"); require("SeurateData")}
+if (!require("Seurat")) {install.packages("Seurat"); require("Seurat")}
+if (!require("sctransform")) {install.packages("sctransform"); require("sctransform")}
+if (!require("patchwork")) {install.packages("patchwork"); require("patchwork")}
+if (!require("ggplot2")) {install.packages("ggplot2"); require("ggplot2")}
+if (!require("tidyverse")) {install.packages("tidyverse"); require("tidyverse")}
+if (!require("openxlsx")) {install.packages("openxlsx"); require("openxlsx")}
+if (!require("readxl")) {install.packages("readxl"); require("readxl")}
+if (!require("data.table")) {install.packages("data.table"); require("data.table")}
+if (!require("here")) {install.packages("here"); require("here")}
+if (!require("writexl")) {install.packages("writexl"); require("writexl")}
+
+if (!require("AnnotationHub")) {BiocManager::install('AnnotationHub'); require("AnnotationHub")}
+if (!require("enrichplot")) {BiocManager::install('enrichplot'); require("enrichplot")}
+if (!require("ggupset")) {install.packages("ggupset"); require("ggupset")}
+if (!require("tidyverse")) {install.packages("tidyverse"); require("tidyverse")}
+
+if(!require("NatParksPalettes")){(install.packages("NatParksPalettes")); require("NatParksPalettes")}
+
+```
+
+# Load Subclustered MG object
+```{r}
+ON_MG <- readRDS(here("Outputs","Subclusters", "Microglia_Subclustering.rds"))
+```
+
+# Cluster Defining DEGs
+```{r echo=TRUE, error=FALSE, message=FALSE, warning=FALSE}
+
+DefaultAssay(ON_MG) <- "RNA"
+
+#Create a new environment for DEG lists
+MG.Cluster.env <- new.env()
+ 
+ls(MG.Cluster.env)
+
+#Create Cluster list
+ON_MG_list <- c(0:4)
+
+for(i in 1:length(ON_MG_list)){
+
+markers <- FindMarkers(ON_MG, ident.1 = ON_MG_list[i], logfc.threshold = 0.322, min.pct = 0.25)
+
+#Sorting DEG list based on avg_log2FC from high to low
+markers = markers[order(markers[,"avg_log2FC"], decreasing = TRUE),]
+
+#Add Gene name to data frame
+markers <- markers %>%
+  rownames_to_column(var="SYMBOL") %>%
+  filter(p_val_adj < 0.05)
+
+#Write object into environment
+assign(paste(ON_MG_list[i]), markers , envir = MG.Cluster.env)
+
+#Print out top 50 DEGs
+print(paste(ON_MG_list[i], "Top 50 DEGs"))
+top50 <- head(markers, 50)
+
+#Prints the list of top 50 DEGs
+print(top50)
+
+#Create FeaturePlot and VlnPlot for top3DEGs
+top3 <- head(markers$SYMBOL, 3)
+
+for (j in top3) {
+  A <- FeaturePlot(ON_MG, j, label = T)+ labs(title= j, subtitle= names(ON_MG_list)[i])
+  B <- VlnPlot(ON_MG, j) + labs(title= j) + xlab(element_blank())
+  print(A) + 
+  print(B)
+  }
+}
+
+#Save DEGs as RData
+
+list_objects <- ls(MG.Cluster.env)
+save(list = list_objects, file = here("Outputs","DEGs","Microglia Subclustering DEGs", "Subclustering Microglia Cluster Defining DEGs.RData"), envir = MG.Cluster.env)
+
+#write a xlsx file of all DEG lists within an environment
+allobj <- ls(MG.Cluster.env)
+alldf <- sapply(allobj, get, simplify = FALSE, envir = MG.Cluster.env)
+alldf <- alldf[sapply(alldf, inherits, "data.frame")]
+alldf <- alldf[order(as.numeric(names(alldf)))]
+ 
+write.xlsx(alldf, sheetName = names(alldf), file = here("Outputs","DEGs","Microglia Subclustering DEGs", "Subclustering Microglia Cluster Defining DEGs.xlsx"))
+```
+
+# PLP Cre+ vs. Control DEGs
+```{r echo=TRUE, error=FALSE, message=FALSE, warning=FALSE}
+#Create a new environment for DEG lists
+MG.PLP.Cluster.env <- new.env()
+ 
+ls(MG.PLP.Cluster.env)
+
+for(i in 1:length(ON_MG_list)){
+  
+#Creating DEG list
+markers <- FindMarkers(ON_MG, ident.1 = "PLP Cre+" , ident.2 = "Control", group.by = "combined.genotype", subset.ident = ON_MG_list[i], logfc.threshold = 0.322)
+
+#Sorting DEG list based on avg_log2FC from high to low
+markers = markers[order(markers[,"avg_log2FC"], decreasing = TRUE),]
+
+#Add Gene name to data frame
+markers <- markers %>%
+  rownames_to_column(var="SYMBOL")
+
+#Write object into environment
+assign(paste("PLPvsControl", (ON_MG_list)[i], sep = "_"), markers , envir = MG.PLP.Cluster.env)
+
+#Print out top 50 DEGs
+print(paste(ON_MG_list[i], "Top 50 DEGs"))
+top50 <- head(markers, 50)
+
+#Prints the list of top 50 DEGs
+print(top50)
+
+#Create FeaturePlot and VlnPlot for top3DEGs
+top3 <- head(markers$SYMBOL, 3)
+
+for (j in top3) {
+  A <- FeaturePlot(ON_MG, j, split.by = "combined.genotype")+ labs(subtitle= names(ON_MG_list)[i])
+  B <- VlnPlot(ON_MG, j, split.by = "combined.genotype", idents = names(ON_MG_list)[i] , cols = natparks.pals("Yellowstone")) + labs(title= j) + xlab(element_blank())
+  print(A) + 
+  print(B)
+  }
+
+#Create FeaturePlot and VlnPlot for bottom3 DEGs
+bottom3 <- tail(markers$SYMBOL, 3)
+
+for (j in bottom3) {
+  C <- FeaturePlot(ON_MG, j, split.by = "combined.genotype")+ labs(subtitle= names(ON_MG_list)[i])
+  D <- VlnPlot(ON_MG, j, split.by = "combined.genotype", idents = names(ON_MG_list)[i] , cols = natparks.pals("Yellowstone")) + labs(title= j) + xlab(element_blank())
+  print(C) + 
+  print(D)
+  }
+}
+
+#Save DEGs as RData
+list_objects <- ls(MG.PLP.Cluster.env)
+save(list = list_objects, file = here("Outputs","DEGs","Microglia Subclustering DEGs", "Subclustering Microglia PLP Cre+ Cluster Defining DEGs.RData"), envir = MG.PLP.Cluster.env)
+
+#write a xlsx file of all DEG lists within an environment
+allobj <- ls(MG.PLP.Cluster.env)
+alldf <- sapply(allobj, get, simplify = FALSE, envir = MG.PLP.Cluster.env)
+alldf <- alldf[sapply(alldf, inherits, "data.frame")]
+alldf <- alldf[order(as.numeric(names(alldf)))]
+ 
+write.xlsx(alldf, sheetName = names(alldf), file = here("Outputs","DEGs","Microglia Subclustering DEGs", "Subclustering Microglia PLP Cre+ Cluster Defining DEGs.xlsx"))
+```
+
+# Sox10 Cre+ vs. Control DEGs
+```{r echo=TRUE, error=FALSE, message=FALSE, warning=FALSE}
+#Create a new environment for DEG lists
+MG.Sox10.Cluster.env <- new.env()
+ 
+ls(MG.Sox10.Cluster.env)
+
+for(i in 1:length(ON_MG_list)){
+  
+#Creating DEG list
+markers <- FindMarkers(ON_MG, ident.1 = "Sox10 Cre+" , ident.2 = "Control", group.by = "combined.genotype", subset.ident = ON_MG_list[i], logfc.threshold = 0.322)
+
+#Sorting DEG list based on avg_log2FC from high to low
+markers = markers[order(markers[,"avg_log2FC"], decreasing = TRUE),]
+
+#Add Gene name to data frame
+markers <- markers %>%
+  rownames_to_column(var="SYMBOL")
+
+#Write object into environment
+assign(paste("Sox10vsControl", (ON_MG_list)[i], sep = "_"), markers , envir = MG.Sox10.Cluster.env)
+
+#Print out top 50 DEGs
+print(paste(ON_MG_list[i], "Top 50 DEGs"))
+top50 <- head(markers, 50)
+
+#Prints the list of top 50 DEGs
+print(top50)
+
+#Create FeaturePlot and VlnPlot for top3DEGs
+top3 <- head(markers$SYMBOL, 3)
+
+for (j in top3) {
+  A <- FeaturePlot(ON_MG, j, split.by = "combined.genotype")+ labs(subtitle= names(ON_MG_list)[i])
+  B <- VlnPlot(ON_MG, j, split.by = "combined.genotype", idents = names(ON_MG_list)[i] , cols = natparks.pals("Yellowstone")) + labs(title= j) + xlab(element_blank())
+  print(A) + 
+  print(B)
+  }
+
+#Create FeaturePlot and VlnPlot for bottom3 DEGs
+bottom3 <- tail(markers$SYMBOL, 3)
+
+for (j in bottom3) {
+  C <- FeaturePlot(ON_MG, j, split.by = "combined.genotype")+ labs(subtitle= names(ON_MG_list)[i])
+  D <- VlnPlot(ON_MG, j, split.by = "combined.genotype", idents = names(ON_MG_list)[i] , cols = natparks.pals("Yellowstone")) + labs(title= j) + xlab(element_blank())
+  print(C) + 
+  print(D)
+  }
+}
+
+#Save DEGs as RData
+list_objects <- ls(MG.Sox10.Cluster.env)
+save(list = list_objects, file = here("Outputs","DEGs","Microglia Subclustering DEGs", "Subclustering Microglia Sox10 Cre+ Cluster Defining DEGs.RData"), envir = MG.Sox10.Cluster.env)
+
+#write a xlsx file of all DEG lists within an environment
+allobj <- ls(MG.Sox10.Cluster.env)
+alldf <- sapply(allobj, get, simplify = FALSE, envir = MG.Sox10.Cluster.env)
+alldf <- alldf[sapply(alldf, inherits, "data.frame")]
+alldf <- alldf[order(as.numeric(names(alldf)))]
+ 
+write.xlsx(alldf, sheetName = names(alldf), file = here("Outputs","DEGs","Microglia Subclustering DEGs", "Subclustering Microglia Sox10 Cre+ Cluster Defining DEGs.xlsx"))
+```
+
+# PLP Cre+ vs. Sox10 DEGs
+```{r echo=TRUE, error=FALSE, message=FALSE, warning=FALSE}
+#Create a new environment for DEG lists
+MG.PLPvsSox10.Cluster.env <- new.env()
+ 
+ls(MG.PLPvsSox10.Cluster.env)
+
+DefaultAssay(ON_MG) <- "RNA"
+
+# Create list of clusters for DEG analysis
+ON_MG_list <- c(0:4)
+
+for(i in 1:length(ON_MG_list)){
+  
+#Creating DEG list
+markers <- FindMarkers(ON_MG, ident.1 = "PLP Cre+" , ident.2 = "Sox10 Cre+", group.by = "combined.genotype", subset.ident = ON_MG_list[i], logfc.threshold = 0.322)
+
+#Sorting DEG list based on avg_log2FC from high to low
+markers = markers[order(markers[,"avg_log2FC"], decreasing = TRUE),]
+
+#Add Gene name to data frame
+markers <- markers %>%
+  rownames_to_column(var="SYMBOL")
+
+#Write object into environment
+assign(paste("PLPvsSox10", (ON_MG_list)[i], sep = "_"), markers , envir = MG.PLPvsSox10.Cluster.env)
+
+#Print out top 50 DEGs
+print(paste(ON_MG_list[i], "Top 50 DEGs"))
+top50 <- head(markers, 50)
+
+#Prints the list of top 50 DEGs
+print(top50)
+
+#Create FeaturePlot and VlnPlot for top3DEGs
+top3 <- head(markers$SYMBOL, 3)
+
+for (j in top3) {
+  A <- FeaturePlot(ON_MG, j, split.by = "combined.genotype")+ labs(subtitle= names(ON_MG_list)[i])
+  B <- VlnPlot(ON_MG, j, split.by = "combined.genotype", idents = names(ON_MG_list)[i] , cols = natparks.pals("Yellowstone")) + labs(title= j) + xlab(element_blank())
+  print(A) + 
+  print(B)
+  }
+
+#Create FeaturePlot and VlnPlot for bottom3 DEGs
+bottom3 <- tail(markers$SYMBOL, 3)
+
+for (j in bottom3) {
+  C <- FeaturePlot(ON_MG, j, split.by = "combined.genotype")+ labs(subtitle= names(ON_MG_list)[i])
+  D <- VlnPlot(ON_MG, j, split.by = "combined.genotype", idents = names(ON_MG_list)[i] , cols = natparks.pals("Yellowstone")) + labs(title= j) + xlab(element_blank())
+  print(C) + 
+  print(D)
+  }
+}
+
+#Save DEGs as RData
+list_objects <- ls(MG.PLPvsSox10.Cluster.env)
+save(list = list_objects, file = here("Outputs","DEGs","Microglia Subclustering DEGs", "Subclustering Microglia PLPvsSox10 Cluster Defining DEGs.RData"), envir = MG.PLPvsSox10.Cluster.env)
+
+#write a xlsx file of all DEG lists within an environment
+allobj <- ls(MG.PLPvsSox10.Cluster.env)
+alldf <- sapply(allobj, get, simplify = FALSE, envir = MG.PLPvsSox10.Cluster.env)
+alldf <- alldf[sapply(alldf, inherits, "data.frame")]
+alldf <- alldf[order(as.numeric(names(alldf)))]
+ 
+write.xlsx(alldf, sheetName = names(alldf), file = here("Outputs","DEGs","Microglia Subclustering DEGs", "Subclustering Microglia PLPvsSox10 Cluster Defining DEGs.xlsx"))
+```
+
+# PLP Cre+ AND Sox10 (Het) vs Control (WT) DEGs
+```{r echo=TRUE, error=FALSE, message=FALSE, warning=FALSE}
+
+#Create a new environment for DEG lists
+MG.HetvsWT.Cluster.env <- new.env()
+ 
+ls(MG.HetvsWT.Cluster.env)
+
+DefaultAssay(ON_MG) <- "RNA"
+
+# Create list of clusters for DEG analysis
+ON_MG_list <- c(0:4)
+
+for(i in 1:length(ON_MG_list)){
+  
+#Creating DEG list
+markers <- FindMarkers(ON_MG, ident.1 = "Het" , ident.2 = "WT", group.by = "Cre", subset.ident = ON_MG_list[i], logfc.threshold = 0.322)
+
+#Sorting DEG list based on avg_log2FC from high to low
+markers = markers[order(markers[,"avg_log2FC"], decreasing = TRUE),]
+
+#Add Gene name to data frame
+markers <- markers %>%
+  rownames_to_column(var="SYMBOL")
+
+#Write object into environment
+assign(paste("HetvsWT", (ON_MG_list)[i], sep = "_"), markers , envir = MG.HetvsWT.Cluster.env)
+
+#Print out top 50 DEGs
+print(paste(ON_MG_list[i], "Top 50 DEGs"))
+top50 <- head(markers, 50)
+
+#Prints the list of top 50 DEGs
+print(top50)
+
+#Create FeaturePlot and VlnPlot for top3DEGs
+top3 <- head(markers$SYMBOL, 3)
+
+for (j in top3) {
+  A <- FeaturePlot(ON_MG, j, split.by = "Cre")+ labs(subtitle= names(ON_MG_list)[i])
+  B <- VlnPlot(ON_MG, j, split.by = "Cre", idents = names(ON_MG_list)[i]) + labs(title= j) + xlab(element_blank())
+  print(A) + 
+  print(B)
+  }
+
+#Create FeaturePlot and VlnPlot for bottom3 DEGs
+bottom3 <- tail(markers$SYMBOL, 3)
+
+for (j in bottom3) {
+  C <- FeaturePlot(ON_MG, j, split.by = "Cre")+ labs(subtitle= names(ON_MG_list)[i])
+  D <- VlnPlot(ON_MG, j, split.by = "Cre", idents = names(ON_MG_list)[i]) + labs(title= j) + xlab(element_blank())
+  print(C) + 
+  print(D)
+  }
+}
+
+#Save DEGs as RData
+list_objects <- ls(MG.HetvsWT.Cluster.env)
+save(list = list_objects, file = here("Outputs","DEGs","Microglia Subclustering DEGs", "Subclustering Microglia HetvsWT  Cluster Defining DEGs.RData"), envir = MG.HetvsWT.Cluster.env)
+
+#write a xlsx file of all DEG lists within an environment
+allobj <- ls(MG.HetvsWT.Cluster.env)
+alldf <- sapply(allobj, get, simplify = FALSE, envir = MG.HetvsWT.Cluster.env)
+alldf <- alldf[sapply(alldf, inherits, "data.frame")]
+alldf <- alldf[order(as.numeric(names(alldf)))]
+ 
+write.xlsx(alldf, sheetName = names(alldf), file = here("Outputs","DEGs","Microglia Subclustering DEGs", "Subclustering Microglia HetvsWT Cluster Defining DEGs.xlsx"))
+```
+
+# DEGs between cluster 0 and 1
+```{r echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+
+#Creating DEG list
+markers <- FindMarkers(ON_MG, ident.1 = "0" , ident.2 = "1", logfc.threshold = 0.322)
+
+#Sorting DEG list based on avg_log2FC from high to low
+markers = markers[order(markers[,"avg_log2FC"], decreasing = TRUE),]
+
+#Add Gene name to data frame
+markers <- markers %>%
+  rownames_to_column(var="SYMBOL")
+
+#Print out top and bottom 25 DEGs
+top25 <- head(markers, 25)
+print(top25)
+
+bottom25 <- tail(markers, 25)
+print(bottom25)
+
+#Create FeaturePlot and VlnPlot for top3DEGs
+top5 <- head(markers$SYMBOL, 5)
+
+for (j in top5) {
+  A <- FeaturePlot(ON_MG, j, label = T)+ labs(subtitle= names(j))
+  B <- VlnPlot(ON_MG, j) + labs(title= j) + xlab(element_blank())
+  C <- FeaturePlot(ON_MG, j, split.by = "combined.genotype", label = T)
+  print(A) + 
+  print(B) +
+  print(C)
+  }
+
+#Create FeaturePlot and VlnPlot for bottom3 DEGs
+bottom5 <- tail(markers$SYMBOL, 5)
+
+for (j in bottom5) {
+  A <- FeaturePlot(ON_MG, j, label = T)+ labs(subtitle= names(j))
+  B <- VlnPlot(ON_MG, j) + labs(title= j) + xlab(element_blank())
+  C <- FeaturePlot(ON_MG, j, split.by = "combined.genotype", label = T)
+  print(A) + 
+  print(B) +
+  print(C)
+  }
+
+#Save DEGs as RData
+save(markers, file = here("Outputs","DEGs","Microglia Subclustering DEGs", "Subclustering Microglia Cluster 0 vs Cluster 1 DEGs.RData"))
+
+#write excel file of DEGs
+write.xlsx(markers, file = here("Outputs","DEGs","Microglia Subclustering DEGs", "Subclustering Microglia Cluster 0 vs Cluster 1 DEGs.xlsx"))
+```
+
+# DEGs between cluster 3 and 4
+```{r echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+
+#Creating DEG list
+markers <- FindMarkers(ON_MG, ident.1 = "3" , ident.2 = "4", logfc.threshold = 0.322)
+
+#Sorting DEG list based on avg_log2FC from high to low
+markers = markers[order(markers[,"avg_log2FC"], decreasing = TRUE),]
+
+#Add Gene name to data frame
+markers <- markers %>%
+  rownames_to_column(var="SYMBOL")
+
+#Print out top and bottom 25 DEGs
+top25 <- head(markers, 25)
+print(top25)
+
+bottom25 <- tail(markers, 25)
+print(bottom25)
+
+#Create FeaturePlot and VlnPlot for top3DEGs
+top5 <- head(markers$SYMBOL, 5)
+
+for (j in top5) {
+  A <- FeaturePlot(ON_MG, j, label = T)+ labs(subtitle= names(j))
+  B <- VlnPlot(ON_MG, j) + labs(title= j) + xlab(element_blank())
+  C <- FeaturePlot(ON_MG, j, split.by = "combined.genotype", label = T)
+  print(A) + 
+  print(B) +
+  print(C)
+  }
+
+#Create FeaturePlot and VlnPlot for bottom3 DEGs
+bottom5 <- tail(markers$SYMBOL, 5)
+
+for (j in bottom5) {
+  A <- FeaturePlot(ON_MG, j, label = T)+ labs(subtitle= names(j))
+  B <- VlnPlot(ON_MG, j) + labs(title= j) + xlab(element_blank())
+  C <- FeaturePlot(ON_MG, j, split.by = "combined.genotype", label = T)
+  print(A) + 
+  print(B) +
+  print(C)
+  }
+
+#Save DEGs as RData
+save(markers, file = here("Outputs","DEGs","Microglia Subclustering DEGs", "Subclustering Microglia Cluster 3 vs Cluster 4 DEGs.RData"))
+
+#write a xlsx file of all DEG lists within an environment
+write.xlsx(markers, file = here("Outputs","DEGs","Microglia Subclustering DEGs", "Subclustering Microglia Cluster 3 vs Cluster 4 DEGs.xlsx"))
+```
+
+# Session Info
+```{r echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+
+sessionInfo()
+```
+

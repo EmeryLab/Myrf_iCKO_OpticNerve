@@ -1,0 +1,457 @@
+---
+title: "Optic Nerve: Oligos"
+author: "Katie Emberley"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document: 
+    toc: yes
+    toc_depth: 3
+    toc_float: true
+    number_sections: yes
+    theme: bootstrap
+    df_print: paged
+    code_folding: hide
+    highlight: pygments
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Load Packages
+```{r echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+if (!require("knitr")) {install.packages("knitr"); require("knitr")}
+if (!require("dplyr")) {install.packages("dplyr"); require("dplyr")}
+if (!require("stringr")) {install.packages("stringr"); require("stringr")}
+if(!require("SeuratData")){install.packages("SeuratData"); require("SeurateData")}
+if (!require("Seurat")) {install.packages("Seurat"); require("Seurat")}
+if (!require("sctransform")) {install.packages("sctransform"); require("sctransform")}
+if (!require("patchwork")) {install.packages("patchwork"); require("patchwork")}
+if (!require("ggplot2")) {install.packages("ggplot2"); require("ggplot2")}
+if (!require("tidyverse")) {install.packages("tidyverse"); require("tidyverse")}
+if (!require("RColorBrewer")) {install.packages("RColorBrewer"); require("RColorBrewer")}
+if (!require("car")) {install.packages("car"); require("car")}
+if (!require("openxlsx")) {install.packages("openxlsx"); require("openxlsx")}
+if (!require("readxl")) {install.packages("readxl"); require("readxl")}
+if (!require("ggrepel")) {install.packages("ggrepel"); require("ggrepel")}
+if (!require("gghighlight")) {install.packages("gghighlight"); require("gghighlight")}
+if (!require("ggpmisc")) {install.packages("ggpmisc"); require("ggpmisc")}
+if (!require("data.table")) {install.packages("data.table"); require("data.table")}
+if (!require("here")) {install.packages("here"); require("here")}
+if (!require("writexl")) {install.packages("writexl"); require("writexl")}
+
+if (!require("ggupset")) {install.packages("ggupset"); require("ggupset")}
+if (!require("tidyverse")) {install.packages("tidyverse"); require("tidyverse")}
+if (!require("RColorBrewer")) {install.packages("RColorBrewer"); require("RColorBrewer")}
+if (!require("org.Mm.eg.db")) {BiocManager::install('org.Mm.eg.db'); require("org.Mm.eg.db")}
+if (!require("tibble")) {install.packages("tibble"); require("tibble")} # rownames_to_column
+
+if(!require("ggforce")){install.packages("ggforce"); require("ggforce")}
+if(!require("graphlayouts")){install.packages("graphlayouts"); require("graphlayouts")}
+
+
+if (!require("clusterProfiler")) {install.packages("clusterProfiler"); require("clusterProfiler")} # bitr
+
+
+if(!require("NatParksPalettes")){(install.packages("NatParksPalettes")); require("NatParksPalettes")}
+
+if (!require("SeuratWrappers")) {install.packages("SeuratWrappers"); require("SeuratWrappers")}
+if (!require("Matrix")) {install.packages("Matrix"); require("Matrix")}
+if (!require("Signac")) {install.packages("Signac"); require("Signac")}
+if (!require("SeuratData")) {install.packages("SeuratData"); require("SeuratData")}
+if (!require("monocle3")) {install.packages("monocle3"); require("monocle3")}
+
+```
+
+
+# Loading Microglia Cells from R
+These files are post-filters individually and post-combined ON Nerve Combined and subclustered as microglia alone.  
+```{r echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+ON.MG <- readRDS(here("Outputs", "Subclusters", "Microglia_Subclustering.rds"))
+
+DimPlot(ON.MG, reduction = "umap", cols=natparks.pals("Charmonix"), label = T)
+
+DimPlot(ON.MG, reduction = "umap", group.by = "Replicate", cols=natparks.pals("GrandCanyon", n=7))
+
+DimPlot(ON.MG, reduction = "umap", group.by = "combined.genotype", cols=natparks.pals("Yellowstone"))
+DimPlot(ON.MG, reduction = "umap", split = "combined.genotype", cols=natparks.pals("Charmonix"))
+
+table(Idents(ON.MG))
+
+table(Idents(ON.MG), ON.MG$Replicate)
+
+table(Idents(ON.MG), ON.MG$combined.genotype)
+```
+
+```{r}
+set.seed(224)
+```
+
+# Psuedolineage Analysis Using Monocle3 - Priniciple Node = 2
+Principle Node selected to start at the homeostatic microglia population (Cluster 2)
+```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center'}
+
+# convert to cell_data_set object (cds.OL)
+cds.OL.v2 <- as.cell_data_set(ON.MG)
+cds.OL.v2 <- cluster_cells(cds = cds.OL.v2, reduction_method = "UMAP")
+
+# Determine proper resolution
+cds.OL.v2_res_adj <- cluster_cells(cds = cds.OL.v2, resolution = 0.0003)
+plot_cells(cds.OL.v2_res_adj)
+cds.OL.v2 <- cds.OL.v2_res_adj
+
+# find all possible partitions
+all_partitions <- unique(cds.OL.v2@clusters$UMAP$partitions)
+all_partitions <- all_partitions[all_partitions != "1"]
+
+# set all partitions to 1
+cds.OL.v2@clusters$UMAP$partitions[cds.OL.v2@clusters$UMAP$partitions %in% all_partitions] <- "1"
+
+# set all cells to one partition, otherwise it won't show the trajectory across partitions. Set use_partition to FALSE as below.
+cds.OL.v2 <- learn_graph(cds.OL.v2, use_partition = F)
+
+# Change the original embryo.time.bin in the tutorial to the cluster column name and the time_bin= will be the cluster name for the root population. https://github.com/cole-trapnell-lab/monocle3/issues/328
+
+# Run this to determine the `time_bin` for the seurat_cluster of interest
+DimPlot(ON.MG, reduction = "umap", group.by = "seurat_clusters", label = T)
+
+# a helper function to identify the root principal points:
+get_earliest_principal_node <- function(cds.OL.v2, time_bin= "2"){
+  cell_ids <- which(colData(cds.OL.v2)[, "seurat_clusters"] == time_bin)
+  closest_vertex <-
+  cds.OL.v2@principal_graph_aux[["UMAP"]]$pr_graph_cell_proj_closest_vertex
+  closest_vertex <- as.matrix(closest_vertex[colnames(cds.OL.v2), ])
+  root_pr_nodes <-
+  igraph::V(principal_graph(cds.OL.v2)[["UMAP"]])$name[as.numeric(names
+  (which.max(table(closest_vertex[cell_ids,]))))]
+  
+  root_pr_nodes
+}
+
+cds.OL.v2 <- order_cells(cds.OL.v2, root_pr_nodes=get_earliest_principal_node(cds.OL.v2))
+
+
+#Passing the programatically selected root node to order_cells() via the root_pr_nodeargument yields:
+
+plot_cells(cds = cds.OL.v2,
+           color_cells_by = "pseudotime",
+           show_trajectory_graph = TRUE,
+           trajectory_graph_color = "black",
+           trajectory_graph_segment_size = 1.5,
+           label_groups_by_cluster=FALSE,
+           label_cell_groups=FALSE,
+           label_leaves=FALSE,
+           label_branch_points=FALSE,
+           graph_label_size=3,
+           cell_size = 0.5) + scale_color_viridis_c()
+
+```
+
+# Psuedolineage Analysis Using Monocle3 - Priniciple Node = 4
+Principle Node selected to start at the "stereotypical" WAM population (Cluster 4)
+```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center'}
+
+# convert to cell_data_set object (cds.OL)
+cds.OL.v2 <- as.cell_data_set(ON.MG)
+cds.OL.v2 <- cluster_cells(cds = cds.OL.v2, reduction_method = "UMAP")
+
+# Determine proper resolution
+cds.OL.v2_res_adj <- cluster_cells(cds = cds.OL.v2, resolution = 0.0003)
+plot_cells(cds.OL.v2_res_adj)
+cds.OL.v2 <- cds.OL.v2_res_adj
+
+# find all possible partitions
+all_partitions <- unique(cds.OL.v2@clusters$UMAP$partitions)
+all_partitions <- all_partitions[all_partitions != "1"]
+
+# set all partitions to 1
+cds.OL.v2@clusters$UMAP$partitions[cds.OL.v2@clusters$UMAP$partitions %in% all_partitions] <- "1"
+
+# set all cells to one partition, otherwise it won't show the trajectory across partitions. Set use_partition to FALSE as below.
+cds.OL.v2 <- learn_graph(cds.OL.v2, use_partition = F)
+
+# Change the original embryo.time.bin in the tutorial to the cluster column name and the time_bin= will be the cluster name for the root population. https://github.com/cole-trapnell-lab/monocle3/issues/328
+
+# Run this to determine the `time_bin` for the seurat_cluster of interest
+DimPlot(ON.MG, reduction = "umap", group.by = "seurat_clusters", label = T)
+
+# a helper function to identify the root principal points:
+get_earliest_principal_node <- function(cds.OL.v2, time_bin= "4"){
+  cell_ids <- which(colData(cds.OL.v2)[, "seurat_clusters"] == time_bin)
+  closest_vertex <-
+  cds.OL.v2@principal_graph_aux[["UMAP"]]$pr_graph_cell_proj_closest_vertex
+  closest_vertex <- as.matrix(closest_vertex[colnames(cds.OL.v2), ])
+  root_pr_nodes <-
+  igraph::V(principal_graph(cds.OL.v2)[["UMAP"]])$name[as.numeric(names
+  (which.max(table(closest_vertex[cell_ids,]))))]
+  
+  root_pr_nodes
+}
+
+cds.OL.v2 <- order_cells(cds.OL.v2, root_pr_nodes=get_earliest_principal_node(cds.OL.v2))
+
+
+#Passing the programatically selected root node to order_cells() via the root_pr_nodeargument yields:
+
+plot_cells(cds = cds.OL.v2,
+           color_cells_by = "pseudotime",
+           show_trajectory_graph = TRUE,
+           trajectory_graph_color = "black",
+           trajectory_graph_segment_size = 1.5,
+           label_groups_by_cluster=FALSE,
+           label_cell_groups=FALSE,
+           label_leaves=FALSE,
+           label_branch_points=FALSE,
+           graph_label_size=3,
+           cell_size = 0.5) + scale_color_viridis_c()
+
+```
+
+# PLP Psuedolineage Analysis Using Monocle3 - Principle Node = 2
+```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center'}
+
+ON.MG.PLP <- subset(x = ON.MG, subset = combined.genotype == c("PLP Cre+"))
+DimPlot(ON.MG.PLP, reduction = "umap", group.by = "combined.genotype", cols = natparks.pals("Yellowstone"))
+
+# convert to cell_data_set object (cds.OL)
+cds.OL.PLPv2 <- as.cell_data_set(ON.MG.PLP)
+cds.OL.PLPv2 <- cluster_cells(cds = cds.OL.PLPv2, reduction_method = "UMAP")
+
+# Determine proper resolution
+cds.OL.PLPv2_res_adj <- cluster_cells(cds = cds.OL.PLPv2, resolution = 0.0003)
+plot_cells(cds.OL.PLPv2_res_adj)
+cds.OL.PLPv2 <- cds.OL.PLPv2_res_adj
+
+# find all possible partitions
+all_partitions <- unique(cds.OL.PLPv2@clusters$UMAP$partitions)
+all_partitions <- all_partitions[all_partitions != "1"]
+
+# set all partitions to 1
+cds.OL.PLPv2@clusters$UMAP$partitions[cds.OL.PLPv2@clusters$UMAP$partitions %in% all_partitions] <- "1"
+
+# set all cells to one partition, otherwise it won't show the trajectory across partitions. Set use_partition to FALSE as below.
+cds.OL.PLPv2 <- learn_graph(cds.OL.PLPv2, use_partition = F)
+
+# Change the original embryo.time.bin in the tutorial to the cluster column name and the time_bin= will be the cluster name for the root population. https://github.com/cole-trapnell-lab/monocle3/issues/328
+
+# Run this to determine the `time_bin` for the seurat_cluster of interest
+DimPlot(ON.MG.PLP, reduction = "umap", group.by = "seurat_clusters", label = T)
+
+# a helper function to identify the root principal points:
+get_earliest_principal_node <- function(cds.OL.PLPv2, time_bin= "2"){
+  cell_ids <- which(colData(cds.OL.PLPv2)[, "seurat_clusters"] == time_bin)
+  closest_vertex <-
+  cds.OL.PLPv2@principal_graph_aux[["UMAP"]]$pr_graph_cell_proj_closest_vertex
+  closest_vertex <- as.matrix(closest_vertex[colnames(cds.OL.PLPv2), ])
+  root_pr_nodes <-
+  igraph::V(principal_graph(cds.OL.PLPv2)[["UMAP"]])$name[as.numeric(names
+  (which.max(table(closest_vertex[cell_ids,]))))]
+  
+  root_pr_nodes
+}
+
+cds.OL.PLPv2 <- order_cells(cds.OL.PLPv2, root_pr_nodes=get_earliest_principal_node(cds.OL.PLPv2))
+
+
+#Passing the programatically selected root node to order_cells() via the root_pr_nodeargument yields:
+
+plot_cells(cds = cds.OL.PLPv2,
+           color_cells_by = "pseudotime",
+           show_trajectory_graph = TRUE,
+           trajectory_graph_color = "black",
+           trajectory_graph_segment_size = 1.5,
+           label_groups_by_cluster=FALSE,
+           label_cell_groups=FALSE,
+           label_leaves=FALSE,
+           label_branch_points=FALSE,
+           graph_label_size=3,
+           cell_size = 0.5) + scale_color_viridis_c()
+```
+
+# PLP Psuedolineage Analysis Using Monocle3 - Principle Node = 4
+```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center'}
+
+ON.MG.PLP <- subset(x = ON.MG, subset = combined.genotype == c("PLP Cre+"))
+DimPlot(ON.MG.PLP, reduction = "umap", group.by = "combined.genotype", cols = natparks.pals("Yellowstone"))
+
+# convert to cell_data_set object (cds.OL)
+cds.OL.PLPv2 <- as.cell_data_set(ON.MG.PLP)
+cds.OL.PLPv2 <- cluster_cells(cds = cds.OL.PLPv2, reduction_method = "UMAP")
+
+# Determine proper resolution
+cds.OL.PLPv2_res_adj <- cluster_cells(cds = cds.OL.PLPv2, resolution = 0.0003)
+plot_cells(cds.OL.PLPv2_res_adj)
+cds.OL.PLPv2 <- cds.OL.PLPv2_res_adj
+
+# find all possible partitions
+all_partitions <- unique(cds.OL.PLPv2@clusters$UMAP$partitions)
+all_partitions <- all_partitions[all_partitions != "1"]
+
+# set all partitions to 1
+cds.OL.PLPv2@clusters$UMAP$partitions[cds.OL.PLPv2@clusters$UMAP$partitions %in% all_partitions] <- "1"
+
+# set all cells to one partition, otherwise it won't show the trajectory across partitions. Set use_partition to FALSE as below.
+cds.OL.PLPv2 <- learn_graph(cds.OL.PLPv2, use_partition = F)
+
+# Change the original embryo.time.bin in the tutorial to the cluster column name and the time_bin= will be the cluster name for the root population. https://github.com/cole-trapnell-lab/monocle3/issues/328
+
+# Run this to determine the `time_bin` for the seurat_cluster of interest
+DimPlot(ON.MG.PLP, reduction = "umap", group.by = "seurat_clusters", label = T)
+
+# a helper function to identify the root principal points:
+get_earliest_principal_node <- function(cds.OL.PLPv2, time_bin= "4"){
+  cell_ids <- which(colData(cds.OL.PLPv2)[, "seurat_clusters"] == time_bin)
+  closest_vertex <-
+  cds.OL.PLPv2@principal_graph_aux[["UMAP"]]$pr_graph_cell_proj_closest_vertex
+  closest_vertex <- as.matrix(closest_vertex[colnames(cds.OL.PLPv2), ])
+  root_pr_nodes <-
+  igraph::V(principal_graph(cds.OL.PLPv2)[["UMAP"]])$name[as.numeric(names
+  (which.max(table(closest_vertex[cell_ids,]))))]
+  
+  root_pr_nodes
+}
+
+cds.OL.PLPv2 <- order_cells(cds.OL.PLPv2, root_pr_nodes=get_earliest_principal_node(cds.OL.PLPv2))
+
+
+#Passing the programatically selected root node to order_cells() via the root_pr_nodeargument yields:
+
+plot_cells(cds = cds.OL.PLPv2,
+           color_cells_by = "pseudotime",
+           show_trajectory_graph = TRUE,
+           trajectory_graph_color = "black",
+           trajectory_graph_segment_size = 1.5,
+           label_groups_by_cluster=FALSE,
+           label_cell_groups=FALSE,
+           label_leaves=FALSE,
+           label_branch_points=FALSE,
+           graph_label_size=3,
+           cell_size = 0.5) + scale_color_viridis_c()
+```
+
+# Sox10 Psuedolineage Analysis Using Monocle3 - Principle Node = 2
+```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center'}
+ON.MG.Sox10 <- subset(x = ON.MG, subset = combined.genotype == c("Sox10 Cre+"))
+DimPlot(ON.MG.Sox10, reduction = "umap", group.by = "combined.genotype", cols = natparks.pals("Yellowstone"))
+
+# convert to cell_data_set object (cds.OL)
+cds.OL.Sox10v2 <- as.cell_data_set(ON.MG.Sox10)
+cds.OL.Sox10v2 <- cluster_cells(cds = cds.OL.Sox10v2, reduction_method = "UMAP")
+
+# Determine proper resolution
+cds.OL.Sox10v2_res_adj <- cluster_cells(cds = cds.OL.Sox10v2, resolution = 0.0003)
+plot_cells(cds.OL.Sox10v2_res_adj)
+cds.OL.Sox10v2 <- cds.OL.Sox10v2_res_adj
+
+# find all possible partitions
+all_partitions <- unique(cds.OL.Sox10v2@clusters$UMAP$partitions)
+all_partitions <- all_partitions[all_partitions != "1"]
+
+# set all partitions to 1
+cds.OL.Sox10v2@clusters$UMAP$partitions[cds.OL.Sox10v2@clusters$UMAP$partitions %in% all_partitions] <- "1"
+
+# set all cells to one partition, otherwise it won't show the trajectory across partitions. Set use_partition to FALSE as below.
+cds.OL.Sox10v2 <- learn_graph(cds.OL.Sox10v2, use_partition = F)
+
+# Change the original embryo.time.bin in the tutorial to the cluster column name and the time_bin= will be the cluster name for the root population. https://github.com/cole-trapnell-lab/monocle3/issues/328
+
+# Run this to determine the `time_bin` for the seurat_cluster of interest
+DimPlot(ON.MG.Sox10, reduction = "umap", group.by = "seurat_clusters", label = T)
+
+# a helper function to identify the root principal points:
+get_earliest_principal_node <- function(cds.OL.Sox10v2, time_bin= "2"){
+  cell_ids <- which(colData(cds.OL.Sox10v2)[, "seurat_clusters"] == time_bin)
+  closest_vertex <-
+  cds.OL.Sox10v2@principal_graph_aux[["UMAP"]]$pr_graph_cell_proj_closest_vertex
+  closest_vertex <- as.matrix(closest_vertex[colnames(cds.OL.Sox10v2), ])
+  root_pr_nodes <-
+  igraph::V(principal_graph(cds.OL.Sox10v2)[["UMAP"]])$name[as.numeric(names
+  (which.max(table(closest_vertex[cell_ids,]))))]
+  
+  root_pr_nodes
+}
+
+cds.OL.Sox10v2 <- order_cells(cds.OL.Sox10v2, root_pr_nodes=get_earliest_principal_node(cds.OL.Sox10v2))
+
+
+#Passing the programatically selected root node to order_cells() via the root_pr_nodeargument yields:
+
+plot_cells(cds = cds.OL.Sox10v2,
+           color_cells_by = "pseudotime",
+           show_trajectory_graph = TRUE,
+           trajectory_graph_color = "black",
+           trajectory_graph_segment_size = 1.5,
+           label_groups_by_cluster=FALSE,
+           label_cell_groups=FALSE,
+           label_leaves=FALSE,
+           label_branch_points=FALSE,
+           graph_label_size=3,
+           cell_size = 0.5) + scale_color_viridis_c()
+```
+
+# Sox10 Psuedolineage Analysis Using Monocle3 - Principle Node = 4
+```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center'}
+ON.MG.Sox10 <- subset(x = ON.MG, subset = combined.genotype == c("Sox10 Cre+"))
+DimPlot(ON.MG.Sox10, reduction = "umap", group.by = "combined.genotype", cols = natparks.pals("Yellowstone"))
+
+# convert to cell_data_set object (cds.OL)
+cds.OL.Sox10v2 <- as.cell_data_set(ON.MG.Sox10)
+cds.OL.Sox10v2 <- cluster_cells(cds = cds.OL.Sox10v2, reduction_method = "UMAP")
+
+# Determine proper resolution
+cds.OL.Sox10v2_res_adj <- cluster_cells(cds = cds.OL.Sox10v2, resolution = 0.0003)
+plot_cells(cds.OL.Sox10v2_res_adj)
+cds.OL.Sox10v2 <- cds.OL.Sox10v2_res_adj
+
+# find all possible partitions
+all_partitions <- unique(cds.OL.Sox10v2@clusters$UMAP$partitions)
+all_partitions <- all_partitions[all_partitions != "1"]
+
+# set all partitions to 1
+cds.OL.Sox10v2@clusters$UMAP$partitions[cds.OL.Sox10v2@clusters$UMAP$partitions %in% all_partitions] <- "1"
+
+# set all cells to one partition, otherwise it won't show the trajectory across partitions. Set use_partition to FALSE as below.
+cds.OL.Sox10v2 <- learn_graph(cds.OL.Sox10v2, use_partition = F)
+
+# Change the original embryo.time.bin in the tutorial to the cluster column name and the time_bin= will be the cluster name for the root population. https://github.com/cole-trapnell-lab/monocle3/issues/328
+
+# Run this to determine the `time_bin` for the seurat_cluster of interest
+DimPlot(ON.MG.Sox10, reduction = "umap", group.by = "seurat_clusters", label = T)
+
+# a helper function to identify the root principal points:
+get_earliest_principal_node <- function(cds.OL.Sox10v2, time_bin= "4"){
+  cell_ids <- which(colData(cds.OL.Sox10v2)[, "seurat_clusters"] == time_bin)
+  closest_vertex <-
+  cds.OL.Sox10v2@principal_graph_aux[["UMAP"]]$pr_graph_cell_proj_closest_vertex
+  closest_vertex <- as.matrix(closest_vertex[colnames(cds.OL.Sox10v2), ])
+  root_pr_nodes <-
+  igraph::V(principal_graph(cds.OL.Sox10v2)[["UMAP"]])$name[as.numeric(names
+  (which.max(table(closest_vertex[cell_ids,]))))]
+  
+  root_pr_nodes
+}
+
+cds.OL.Sox10v2 <- order_cells(cds.OL.Sox10v2, root_pr_nodes=get_earliest_principal_node(cds.OL.Sox10v2))
+
+
+#Passing the programatically selected root node to order_cells() via the root_pr_nodeargument yields:
+
+plot_cells(cds = cds.OL.Sox10v2,
+           color_cells_by = "pseudotime",
+           show_trajectory_graph = TRUE,
+           trajectory_graph_color = "black",
+           trajectory_graph_segment_size = 1.5,
+           label_groups_by_cluster=FALSE,
+           label_cell_groups=FALSE,
+           label_leaves=FALSE,
+           label_branch_points=FALSE,
+           graph_label_size=3,
+           cell_size = 0.5) + scale_color_viridis_c()
+```
+
+# Session Info
+```{r echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+
+sessionInfo()
+```
+
