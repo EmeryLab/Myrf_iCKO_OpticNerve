@@ -1,0 +1,510 @@
+---
+title: "ON_8 Ambient RNA and Doublet Removal"
+author: "Katie Emberley, Jonathan Nelson, Greg Duncan, and Jeremiah Ryes"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  html_document: 
+    toc: yes
+    toc_depth: 3
+    toc_float: true
+    number_sections: yes
+    theme: bootstrap
+    df_print: paged
+    code_folding: hide
+    highlight: pygments
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load Packages
+```{r load_new_packages, echo=T, error=FALSE, message=FALSE, warning=FALSE}
+
+if (!require("Seurat")) {install.packages("Seurat"); require("Seurat")}
+if (!require("ggplot2")) {install.packages("ggplot2"); require("ggplot2")}
+if (!require("tidyverse")) {install.packages("tidyverse"); require("tidyverse")}
+if (!require("SoupX")) {install.packages("SoupX"); require("SoupX")}
+if (!require("DoubletFinder")) {BiocManager::install('DoubletFinder'); require("DoubletFinder")}
+if (!require("here")) {install.packages("here"); require("here")}
+
+# If installing DoubletFinder for the first time, follow below
+#if (!require("remotes")) {install.packages("remotes"); require("remotes")}
+#remotes::install_github('chris-mcginnis-ucsf/DoubletFinder')
+```
+
+* Note: if having trouble with `Here`, make sure to quit R studio, then open this file directly from it's file home.
+
+# SoupX for Ambient RNA Removal
+[(Young and Behjati, 2020)](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7763177/)
+
+```{r pre_process, echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+# Load data and estimate soup profile
+tod = Seurat::Read10X_h5(here("GEO", "Cell Ranger", "GDMSON_8_raw_feature_bc_matrix.h5")) #Change
+toc = Seurat::Read10X_h5(here("GEO", "Cell Ranger", "GDMSON_8_filtered_feature_bc_matrix.h5")) #Change 
+sc = SoupChannel(tod,toc)
+
+ 
+#Make the Seurat object from the filtered control data
+SO <- Read10X_h5(here("GEO", "Cell Ranger", "GDMSON_8_filtered_feature_bc_matrix.h5")) #Change
+SO <- CreateSeuratObject(counts = SO, project = "GDKE_ON")
+ 
+#Cluster the cells with Seurat
+SO <- SCTransform(SO, verbose = F)
+SO <- RunPCA(SO, verbose = F)
+SO <- RunUMAP(SO, dims = 1:30, verbose = F) #30 dims was arbitrarily chosen for this original clustering
+SO <- FindNeighbors(SO, dims = 1:30, verbose = F) #30 dims was arbitrarily chosen for this original clustering
+SO <- FindClusters(SO, verbose = T)
+ 
+meta <- SO@meta.data
+umap <- SO@reductions$umap@cell.embeddings
+clusters <- setNames(meta$seurat_clusters, rownames(meta))
+
+#Sanity Check
+length(clusters) #should be equal to nrow(sc$metaData)
+nrow(sc$metaData)
+
+sc <- setClusters(sc, clusters)
+sc <- setDR(sc, umap)
+
+#Estimate rho
+sc = autoEstCont(sc)
+
+#Clean the data
+SO_out = adjustCounts(sc)
+ 
+#Create a new Seurat Object out of the cleaned data
+seurat.obj <- CreateSeuratObject(SO_out)
+```
+
+# Old-School Pre-process
+
+We have opted to not remove doublets from these samples due to the batch variability between samples 1-4 and 5-8. In samples 5-8 doublet detector found a high proportion of doublets in the OPC population and throughout the oligolineage. We believe these are biologically relevant. We still ran Doublet Finder with the initial pre-process of `nFeature_RNA` > 1,000. BUT, we did not remove the doublets. Instead, we "oldschool" remove doublets, by pre-filtering the data below based on `nFeature_RNA` and `nCount_RNA`. 
+
+* Filter (same across all 8 samples)
+  + 1000 < `nFeature_RNA` < 4,000 
+  + `nCount_RNA` < 10,000
+
+```{r pre_process2, echo=TRUE, error=FALSE, fig.align= 'center', message=FALSE, warning=FALSE}
+
+VlnPlot(seurat.obj, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+
+# Minimal QC and Filtering (low quality cells) to let doublet find doublets -- removing nFeature_RNA < 1000 to keep consistent with the files that have a little more debris/junk following CellRanger processing
+seurat.obj.f <- subset (seurat.obj, nFeature_RNA > 1000 & 
+                          nFeature_RNA < 4000 &
+                          nCount_RNA < 10000)
+
+# Check the cut-off
+VlnPlot(seurat.obj, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+VlnPlot(seurat.obj.f, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+
+# Determine the number of nuclei removed from filtering
+seurat.obj # Original: 25348
+seurat.obj.f # Filtered Nuceli: 7277
+
+# Pre-process standard workflow
+seurat.obj.f <- NormalizeData(object = seurat.obj.f)
+seurat.obj.f <- FindVariableFeatures(object = seurat.obj.f)
+seurat.obj.f <- ScaleData(object = seurat.obj.f)
+seurat.obj.f <- RunPCA(object = seurat.obj.f)
+ElbowPlot(seurat.obj.f, ndims = 40)
+
+# PCs between 15-20
+seurat.obj.f <- FindNeighbors(object = seurat.obj.f, dims = 1:25)
+seurat.obj.f <- FindClusters(object = seurat.obj.f, resolution = 0.04)
+seurat.obj.f <- RunUMAP(object = seurat.obj.f, dims = 1:25)
+DimPlot(seurat.obj.f, reduction = "umap", label = T)
+
+# Check the cutoff per population
+FeaturePlot(seurat.obj.f, "nCount_RNA", label = T)
+VlnPlot(seurat.obj.f, "nCount_RNA")
+FeaturePlot(seurat.obj.f, "nFeature_RNA", label = T)
+VlnPlot(seurat.obj.f, "nFeature_RNA")
+
+## UMAP definitely shows some "smudge" between clusters, but some of it may be biologically relevant, as seen with the OPC to Oligo cluster. 
+FeaturePlot(seurat.obj.f, "Mog", label = T) # Mature OL marker
+FeaturePlot(seurat.obj.f, "Pdgfra", label = T) # OPC marker
+```
+
+# Pre-process for Doublet Finder
+[(McGinnis et al., 2019)](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6853612/)
+
+Note: we are using `seurat.obj` which does NOT have any of the above "Old-School Pre-Process" in the object, before setting a single threshold of `seurat.obj` > 1,000 as pre-process for Doublet Finder. 
+  
+```{r pre_process_df, echo=TRUE, error=FALSE, fig.align= 'center', message=FALSE, warning=FALSE}
+
+VlnPlot(seurat.obj, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+
+# Minimal QC and Filtering (low quality cells) to let doublet find doublets -- removing nFeature_RNA < 1000 to keep consistent with the files that have a little more debris/junk following CellRanger processing
+seurat.obj.df <- subset (seurat.obj, nFeature_RNA > 1000)
+
+# Check the cut-off
+VlnPlot(seurat.obj, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+VlnPlot(seurat.obj.df, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+
+# Determine the number of nuclei removed from filtering
+seurat.obj # Original: 25348
+seurat.obj.f # Filtered Nuceli: 7277
+seurat.obj.df # Filtered Nuceli: 10447
+
+# Pre-process standard workflow
+seurat.obj.df <- NormalizeData(object = seurat.obj.df)
+seurat.obj.df <- FindVariableFeatures(object = seurat.obj.df)
+seurat.obj.df <- ScaleData(object = seurat.obj.df)
+seurat.obj.df <- RunPCA(object = seurat.obj.df)
+ElbowPlot(seurat.obj.df, ndims = 40)
+
+# PCs between 15-20
+seurat.obj.df <- FindNeighbors(object = seurat.obj.df, dims = 1:25)
+seurat.obj.df <- FindClusters(object = seurat.obj.df, resolution = 0.04)
+seurat.obj.df <- RunUMAP(object = seurat.obj.df, dims = 1:25)
+DimPlot(seurat.obj.df, reduction = "umap")
+
+# Check the cutoff per population
+FeaturePlot(seurat.obj.df, "nCount_RNA", label = T)
+VlnPlot(seurat.obj.df, "nCount_RNA")
+FeaturePlot(seurat.obj.f, "nFeature_RNA", label = T)
+VlnPlot(seurat.obj.f, "nFeature_RNA")
+
+## UMAP definitely shows some "smudge" between clusters, but some of it may be biologically relevant, as seen with the OPC to Oligo cluster. 
+FeaturePlot(seurat.obj.df, "Mog", label = T) # Mature OL marker
+FeaturePlot(seurat.obj.df, "Pdgfra", label = T) # OPC marker
+```
+
+```{r find_parameters_1, echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center', results=F}
+
+# Calculate each combination of pN and pK
+sweep.res.list_seurat.obj.df <- paramSweep_v3(seurat.obj.df, PCs = 1:20, sct = FALSE) 
+```
+
+```{r find_parameters_2, echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+
+#Summarize each combination of pN and pK
+sweep.stats_seurat.obj.df <- summarizeSweep(sweep.res.list_seurat.obj.df, GT = FALSE) 
+
+#Select the pK that corresponds to max bcmvn to optimize doublet detection
+bcmvn_seurat.obj.df <- find.pK(sweep.stats_seurat.obj.df)
+pK <- bcmvn_seurat.obj.df %>% 
+  filter(BCmetric == max(BCmetric)) %>%
+  select(pK) 
+
+#See pK in the Values Environment
+pK <- as.numeric(as.character(pK[[1]]))
+
+```
+
+```{r homotypic_doublets, echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+
+# Homotypic Doublet Proportion Estimate -------------------------------------------------------------------------------------
+annotations <- seurat.obj.df@meta.data$seurat_clusters  
+
+homotypic.prop <- modelHomotypic(annotations)           
+homotypic.prop
+
+# 10X Multiplet Rate Table https://kb.10xgenomics.com/hc/en-us/articles/360001378811-What-is-the-maximum-number-of-cells-that-can-be-profiled-
+# Number of cells cromes from seurat.obj.df --> samples
+
+
+# 1 8312 - 0.068
+# 2 9488 - 0.08
+# 3 3712 - 0.032
+# 4 6685 - 0.052
+# 5 13136 - 0.08
+# 6 8487 - 0.068
+# 7 7058 - 0.056
+# 8 10447 - 0.08
+
+nExp_poi <- round(0.08*nrow(seurat.obj.df@meta.data)) #Change
+nExp_poi
+nExp_poi_adj <- round(nExp_poi*(1-homotypic.prop))
+
+```
+
+# Doublet Finder
+
+```{r doublet_finder, echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+
+seurat.obj.df_doublets <- doubletFinder_v3(seurat.obj.df,
+                        PCs = 1:20,
+                        pN = 0.25,
+                        pK = pK,
+                        nExp = nExp_poi_adj,
+                        reuse.pANN = FALSE, sct = FALSE)
+colnames(seurat.obj.df_doublets@meta.data)[6] <- "pANN"
+colnames(seurat.obj.df_doublets@meta.data)[7] <- "DF.class"
+head(seurat.obj.df_doublets@meta.data)
+table(seurat.obj.df_doublets@meta.data$DF.class)
+
+DimPlot(seurat.obj.df_doublets, group.by = "DF.class")
+
+VlnPlot(seurat.obj.df_doublets, "nFeature_RNA", group.by = "DF.class")
+
+VlnPlot(seurat.obj.df_doublets, "nCount_RNA", group.by = "DF.class")
+
+VlnPlot(seurat.obj.df_doublets, "nFeature_RNA")
+
+# If running into error on VlnPlots, check to see the data.frame names for each column before and after the doublets were added
+#head(seurat.obj.df_doublets@meta.data)
+#head(seurat.obj.df@meta.data)
+
+saveRDS(seurat.obj.df_doublets, here("Outputs", "QC Objects", "Doublet Detector Objects", "DF_GDMS_ON_8.rds")) #Change
+```
+
+## Load Doublet Finder Object
+
+To start from here, just load the RDS.  
+
+```{r load DF object}
+# seurat.obj.df_doublets <- readRDS(here("Outputs", "QC Objects", "Doublet Detector Objects", "DF_GDMS_ON_8.rds")) #Change
+```
+
+## Subset Singlets
+
+Note: If continuing forward with doublets removal, object `seurat.obj.f_singlets` does not exist in the downstream analysis after this code chunk. 
+
+```{r subset, echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+
+seurat.obj.f_singlets <- subset(seurat.obj.df_doublets, DF.class == "Singlet")
+seurat.obj.f_singlets
+DimPlot(seurat.obj.f_singlets, reduction = "umap")
+```
+
+# Add Meta data
+
+* Metadata added descriptors:
+  + `Replicate`: sample name
+  + `Sex`: Male or Female
+  + `Genotype`: Combination of CreType and Cre
+  + `CreType`: PLP or Sox10
+    - Cre is all: CreERT
+  + `Cre`: Het or WT
+  + `Floxed_Gene` : Myrf
+    - The floxed gene in this dataset, that is driven by the CreType. 
+  + `Animal_1`: One of the animal numbers in the sample 
+    - Two animals of same sex, genotype, age, were combined to create one sample to achieve the necessary cell populations and count
+  + `Animal_2`: The other animal number in the sample 
+    - Two animals of same sex, genotype, age, were combined to create one sample to achieve the necessary cell populations and count
+  + `Day Nuclei Isolated`: Day1 or Day2     
+    - Processed samples 1-4 on one day and 5-8 on another day
+  + `Tissue`: Optic Nerve
+    - Type of tissue this dataset is from
+  + `Model`: Mouse
+    - Type of model this dataset is from
+  + `Age_Euthanized`: 18wk
+    - Timepoint for experiment
+  + `Age_TAM`: 8wk
+    - Age when administered tamoxifen
+
+```{r meta data, echo=TRUE, error=FALSE, fig.align= 'center', message=FALSE, warning=FALSE}
+# Create Seurat object and add metadata
+seurat.obj.f[["percent.mt"]] <- PercentageFeatureSet(seurat.obj.f, pattern = "^mt-")
+seurat.obj.f <- AddMetaData(object = seurat.obj.f, metadata = "GDMS_ON_8", col.name = "Replicate") #Change
+seurat.obj.f <- AddMetaData(object = seurat.obj.f, metadata = "Male", col.name = "Sex") #Change
+seurat.obj.f <- AddMetaData(object = seurat.obj.f, metadata = "Sox10 WT", col.name = "Genotype") #Change
+seurat.obj.f <- AddMetaData(object = seurat.obj.f, metadata = "Sox10", col.name = "CreType") #Change
+seurat.obj.f <- AddMetaData(object = seurat.obj.f, metadata = "WT", col.name = "Cre") #Change
+seurat.obj.f <- AddMetaData(object = seurat.obj.f, metadata = "Myrf", col.name = "Floxed_Gene")
+seurat.obj.f <- AddMetaData(object = seurat.obj.f, metadata = "G15", col.name = "Animal_1") #Change
+seurat.obj.f <- AddMetaData(object = seurat.obj.f, metadata = "G66", col.name = "Animal_2") #Change
+seurat.obj.f <- AddMetaData(object = seurat.obj.f, metadata = "Day2", col.name = "Day_Nuclei_Isolated") #Change
+seurat.obj.f <- AddMetaData(object = seurat.obj.f, metadata = "Optic Nerve", col.name = "Tissue")
+seurat.obj.f <- AddMetaData(object = seurat.obj.f, metadata = "Mouse", col.name = "Model")
+seurat.obj.f <- AddMetaData(object = seurat.obj.f, metadata = "18wk", col.name = "Age_Euthanized")
+seurat.obj.f <- AddMetaData(object = seurat.obj.f, metadata = "8wk", col.name = "Age_TAM")
+
+head(seurat.obj.f@meta.data)
+```
+
+# Remove Mitochondrial Genes
+
+```{r mito, echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+
+seurat.obj.f <- seurat.obj.f[!grepl("^mt-", rownames(seurat.obj.f)), ]
+
+#Mito Sanity Check
+counts <- GetAssayData(seurat.obj.f, assay = "RNA")
+mito.genes <- grep(pattern = "^mt-", x = rownames(x = counts), value = TRUE) 
+mito.genes #should be zero
+
+DimPlot(seurat.obj.f, reduction = "umap", label = T)
+```
+
+# Initial Cluster Identification
+
+```{r cluster1, echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center', fig.width = 7, fig.height= 8}
+
+seurat.obj.f.markers <- FindAllMarkers(seurat.obj.f, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
+
+seurat.obj.f.markers %>%
+    group_by(cluster) %>%
+    top_n(n = 5, wt = avg_log2FC) -> top5
+
+DoHeatmap(seurat.obj.f, features = top5$gene) + NoLegend()
+
+seurat.obj.f.markers %>%
+    group_by(cluster) %>%
+    top_n(n = 2, wt = avg_log2FC) -> top2
+
+VlnPlot(seurat.obj.f, 
+        features = unique(top2$gene),
+        stack = TRUE, 
+        flip = TRUE,
+        pt.size = 0)+
+        NoLegend()
+
+```
+
+
+```{r cluster2, echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+DotPlot(seurat.obj.f, features = unique(top2$gene), dot.scale = 8, cols = c("dodgerblue2", "coral2")) + RotatedAxis()
+```
+
+# Key Markers for Cluster Identification
+
+* Cluster identification
+  + 0 = Oligodendrocytes
+  + 1 = Astrocytes
+  + 2 = Astrocytes??
+  + 3 = Unknwon
+  + 4 = Microglia
+  + 5 = OPCs
+  + 6 = Unknown
+
+
+```{r key markers_cluster check, echo=TRUE, error=FALSE, fig.align= 'center', message=FALSE, warning=FALSE, fig.align = 'center', fig.height= 6, fig.width = 5}
+
+# Oligolineage marker
+VlnPlot(seurat.obj.f, "Sox10") +
+FeaturePlot(seurat.obj.f, "Sox10", label = T)
+
+# Myelinating Oligodendrocyte and the gene we KO
+VlnPlot(seurat.obj.f, "Myrf") +
+FeaturePlot(seurat.obj.f, "Myrf", label = T)
+
+# Myelinating Oligodendrocyte Marker
+VlnPlot(seurat.obj.f, "Mbp") +
+FeaturePlot(seurat.obj.f, "Mbp", label = T)
+
+# Oligodendrocyte Marker
+VlnPlot(seurat.obj.f, "Aspa") +
+FeaturePlot(seurat.obj.f, "Aspa", label = T)
+
+# "Ghost Oligo" Marker
+VlnPlot(seurat.obj.f, "Sox6") +
+FeaturePlot(seurat.obj.f, "Sox6", label = T)
+
+# "Ghost Oligo" Marker
+VlnPlot(seurat.obj.f, "Piezo2") +
+FeaturePlot(seurat.obj.f, "Piezo2", label = T)
+
+# Canonical Astrocyte Marker
+VlnPlot(seurat.obj.f, "Gja1") +
+FeaturePlot(seurat.obj.f, "Gja1", label = T)
+
+# Canonical Astrocyte Marker
+VlnPlot(seurat.obj.f, "Aqp4") +
+FeaturePlot(seurat.obj.f, "Aqp4", label = T)
+
+# Canonical Astrocyte Marker
+VlnPlot(seurat.obj.f, "Slc1a3") +
+FeaturePlot(seurat.obj.f, "Slc1a3", label = T)
+
+# Canonical Astrocyte Marker (downregulated in inflammation); upregulated in MG in disease
+VlnPlot(seurat.obj.f, "Apoe") +
+FeaturePlot(seurat.obj.f, "Apoe", label = T)
+
+# Canonical Astrocyte Marker (downregulated in inflammation)
+VlnPlot(seurat.obj.f, "Gfap") +
+FeaturePlot(seurat.obj.f, "Gfap", label = T)
+
+# Canonical Astrocyte Marker
+VlnPlot(seurat.obj.f, "Aldh1l1") +
+FeaturePlot(seurat.obj.f, "Aldh1l1", label = T)
+
+# Canonical Astrocyte Marker 
+VlnPlot(seurat.obj.f, "Sox9") +
+FeaturePlot(seurat.obj.f, "Sox9", label = T)
+
+# Reactive Astrocyte Marker 
+VlnPlot(seurat.obj.f, "Vim") +
+FeaturePlot(seurat.obj.f, "Vim", label = T)
+
+# T-cell marker / Microglia (CD45)
+VlnPlot(seurat.obj.f, "Ptprc") +
+FeaturePlot(seurat.obj.f, "Ptprc", label = T)
+
+# Microglia and Macrophage Marker
+VlnPlot(seurat.obj.f, "C1qb") +
+FeaturePlot(seurat.obj.f, "C1qb", label = T)
+
+# Microglia Marker (may go down in inflammation)
+VlnPlot(seurat.obj.f, "Tmem119") +
+FeaturePlot(seurat.obj.f, "Tmem119", label = T)
+
+# Microglia Marker (may go down in inflammation)
+VlnPlot(seurat.obj.f, "P2ry12") +
+FeaturePlot(seurat.obj.f, "P2ry12", label = T)
+
+# Microglia Marker (may go down in inflammation)
+VlnPlot(seurat.obj.f, "Siglech") +
+FeaturePlot(seurat.obj.f, "Siglech", label = T)
+
+# OPC Marker
+VlnPlot(seurat.obj.f, "Pdgfra") +
+FeaturePlot(seurat.obj.f, "Pdgfra", label = T)
+
+# OPC Marker
+VlnPlot(seurat.obj.f, "Olig2") +
+FeaturePlot(seurat.obj.f, "Olig2", label = T)
+
+# Premyelinating Oligodendrocyte marker
+VlnPlot(seurat.obj.f, "Bmp4") +
+FeaturePlot(seurat.obj.f, "Bmp4", label = T)
+
+# Premyelinating Oligodendrocyte marker
+VlnPlot(seurat.obj.f, "Enpp6") +
+FeaturePlot(seurat.obj.f, "Enpp6", label = T)
+
+# Pan-neruonal Marker
+VlnPlot(seurat.obj.f, "Rbfox3") +
+FeaturePlot(seurat.obj.f, "Rbfox3", label = T)
+
+# Mature Neuron Marker
+VlnPlot(seurat.obj.f, "Syt1") +
+FeaturePlot(seurat.obj.f, "Syt1", label = T)
+
+# Endothelial Cell Marker
+VlnPlot(seurat.obj.f, "Cldn5") +
+FeaturePlot(seurat.obj.f, "Cldn5", label = T)
+
+# Fibroblast-like Marker 
+VlnPlot(seurat.obj.f, "Dcn") +
+FeaturePlot(seurat.obj.f, "Dcn", label = T)
+```
+
+# Features, Counts and Mitochondrial Plots
+
+```{r features_counts_mito, echo=TRUE, error=FALSE, fig.align= 'center', message=FALSE, warning=FALSE, fig.align = 'center', fig.height= 6, fig.width = 5}
+
+VlnPlot(seurat.obj.f, "nFeature_RNA") +
+FeaturePlot(seurat.obj.f, "nFeature_RNA", label = T)
+
+VlnPlot(seurat.obj.f, "nCount_RNA") +
+FeaturePlot(seurat.obj.f, "nCount_RNA", label = T)
+
+VlnPlot(seurat.obj.f, "percent.mt") +
+FeaturePlot(seurat.obj.f, "percent.mt", label = T)
+```
+
+# Output Files
+
+```{r pdf, echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+saveRDS(seurat.obj.f, here("Outputs", "QC Objects", "QC_GDMS_ON_8.rds")) #Change
+```
+
+# Session Info
+
+```{r sessioninfo, echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+
+sessionInfo()
+```
