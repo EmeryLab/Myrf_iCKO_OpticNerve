@@ -1,7 +1,7 @@
 # Instructions for Running Myrf_iCKO_OpticNerve snRNAseq Analysis
 snRNA-seq Analysis of Demyelinating Myrf iCKO Optic Nerves
 
-Katie Emberley 5.11.2023
+Katie Emberley 6.20.2023
 
 Step 1: Download folders and files from GitHub as a zip folder and place it on your computer.
 
