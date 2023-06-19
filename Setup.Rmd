@@ -34,29 +34,27 @@ here()
 # Setup file architecture
 ```{r, echo=TRUE, warning=FALSE, error=FALSE, message=FALSE}
 #Setup file architecture to place files from GEO and have output folder
-ONdataset <- "ON dataset"
 GEO <- "GEO"
 CellRanger <-"Cell Ranger"
-MS10 <- "MS10"
-MP <- "MP"
 Outputs <- "Outputs"
 QC <- "QC Objects"
-Intermediate <- "Intemediate Objects"
+DTO <- "Doublet Detector Objects"
+Intermediate <- "Intermediate Objects"
 Subclusters <- "Subclusters"
+DEGs <- "DEGs"
+MG_Sub_DEGs <- "Microglia Subclustering DEGs"
 
-
-#Create Folders for Optic Nerve (ON) Dataset
-if (!dir.exists(here(ONdataset))) {dir.create(here(ONdataset))}
 #Create Folders for Sox10 Cre Postive and Negative and PLP Cre Positive and Negative GEO Datasets
 if (!dir.exists(here(GEO))) {dir.create(here(GEO))}
 if (!dir.exists(here("GEO", CellRanger))) {dir.create(here("GEO", CellRanger))}
-if (!dir.exists(here("GEO", "CellRanger", MS10))) {dir.create(here("GEO", "Cell Ranger", MS10))}
-if (!dir.exists(here("GEO", "CellRanger", MP))) {dir.create(here("GEO", "Cell Ranger", MP))}
 #Create Outputs Folder and Outputs Subfolder
 if (!dir.exists(here(Outputs))) {dir.create(here(Outputs))}
 if (!dir.exists(here("Outputs", QC))) {dir.create(here("Outputs", QC))}
+if (!dir.exists(here("Outputs", "QC Objects", DTO))) {dir.create(here("Outputs", "QC Objects", DTO))}
 if (!dir.exists(here("Outputs", Subclusters))) {dir.create(here("Outputs", Subclusters))}
 if (!dir.exists(here("Outputs", Intermediate))) {dir.create(here("Outputs", Intermediate))}
+if (!dir.exists(here("Outputs", DEGs))) {dir.create(here("Outputs", DEGs))}
+if (!dir.exists(here("Outputs", "DEGs", MG_Sub_DEGs))) {dir.create(here("Outputs", "DEGs", MG_Sub_DEGs))}
 
 rm(list = ls())
 ```
