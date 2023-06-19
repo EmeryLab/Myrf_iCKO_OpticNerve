@@ -1,0 +1,133 @@
+---
+title: "Optic Nerve PLP Cre+ vs. Sox10 Cre+ DEG list"
+author: "Jonathan Nelson and Katie Emberley"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  html_document: 
+    toc: yes
+    toc_depth: 3
+    toc_float: true
+    number_sections: yes
+    theme: bootstrap
+    df_print: paged
+    code_folding: hide
+    highlight: pygments
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load new packages, echo=FALSE, warning=FALSE, error=FALSE, message=FALSE}
+if(!require("Seurat")) {install.packages("Seurat"); require("Seurat")}
+if (!require("knitr")) {install.packages("knitr"); require("knitr")}
+if (!requireNamespace('BiocManager', quietly = TRUE)) {install.packages('BiocManager'); require("BiocManager")}
+if (!require("dplyr")) {install.packages("dplyr"); require("dplyr")}
+if (!require("tidyverse")) {install.packages("tidyverse"); require("tidyverse")}
+
+if (!require("clusterProfiler")) {BiocManager::install('clusterProfiler'); require("clusterProfiler")}
+if (!require("enrichplot")) {BiocManager::install('enrichplot'); require("enrichplot")}
+
+if (!require("ggrepel")) {install.packages("ggrepel"); require("ggrepel")}
+if (!require("gghighlight")) {install.packages("gghighlight"); require("gghighlight")}
+if (!require("ggpmisc")) {install.packages("ggpmisc"); require("ggpmisc")}
+if (!require("ggupset")) {install.packages("ggupset"); require("ggupset")}
+if (!require("ggplot2")) {install.packages("ggplot2"); require("ggplot2")}
+if (!require("RColorBrewer")) {install.packages("RColorBrewer"); require("RColorBrewer")}
+
+if (!require("openxlsx")) {install.packages("openxlsx"); require("openxlsx")}
+if (!require("readxl")) {install.packages("readxl"); require("readxl")}
+if (!require("data.table")) {install.packages("data.table"); require("data.table")}
+if (!require("here")) {install.packages("here"); require("here")}
+
+if (!require("NatParksPalettes")) {install.packages("NatParksPalettes"); require("NatParksPalettes")}
+here()
+```
+
+
+# Load Seurat Object and create lists
+```{r load data, echo=TRUE, warning=FALSE, error=FALSE, message=FALSE}
+
+ON_Combined <- readRDS(here("Outputs","ON_Combined_Final.rds"))
+
+ON_Combined
+```
+
+# PLP Cre+ vs. Sox10 DEGs
+```{r echo=TRUE, error=FALSE, message=FALSE, warning=FALSE}
+
+DefaultAssay(ON_Combined) <- "RNA"
+
+# Create list of clusters for DEG analysis
+ON_Combined_list <- unlist(levels(ON_Combined@meta.data$named.clusters))
+names(ON_Combined_list) <- ON_Combined_list
+
+#Create a new environment for DEG lists
+DEG.env <- new.env()
+ 
+ls(DEG.env)
+
+for(i in 1:length(ON_Combined_list)){
+  
+#Creating DEG list
+markers <- FindMarkers(ON_Combined, ident.1 = "PLP Cre+" , ident.2 = "Sox10 Cre+", group.by = "combined.genotype", subset.ident = ON_Combined_list[i], logfc.threshold = 0.322)
+
+#Sorting DEG list based on avg_log2FC from high to low
+markers = markers[order(markers[,"avg_log2FC"], decreasing = TRUE),]
+
+#Add Gene name to data frame and filter for only significant genes
+markers <- markers %>%
+  rownames_to_column(var="gene") %>%
+  filter(p_val_adj < 0.05)
+
+#Write object into environment
+assign(paste("PLPvsSox10", names(ON_Combined_list)[i], sep = "_"), markers , envir = DEG.env)
+
+#Print out top 50 DEGs
+print(paste(names(ON_Combined_list[i]), "Top 50 DEGs"))
+top50 <- head(markers, 50)
+
+#Prints the list of top 50 DEGs
+print(top50)
+
+#Create FeaturePlot and VlnPlot for top3DEGs
+top3 <- head(markers$gene, 3)
+
+for (j in top3) {
+  A <- FeaturePlot(ON_Combined, j, split.by = "combined.genotype")+ labs(subtitle= names(ON_Combined_list)[i])
+  B <- VlnPlot(ON_Combined, j, split.by = "combined.genotype", idents = names(ON_Combined_list)[i] , cols = natparks.pals("Yellowstone")) + labs(title= j) + xlab(element_blank())
+  print(A) + 
+  print(B)
+  }
+
+#Create FeaturePlot and VlnPlot for bottom3 DEGs
+bottom3 <- tail(markers$gene, 3)
+
+for (j in bottom3) {
+  C <- FeaturePlot(ON_Combined, j, split.by = "combined.genotype")+ labs(subtitle= names(ON_Combined_list)[i])
+  D <- VlnPlot(ON_Combined, j, split.by = "combined.genotype", idents = names(ON_Combined_list)[i] , cols = natparks.pals("Yellowstone")) + labs(title= j) + xlab(element_blank())
+  print(C) + 
+  print(D)
+  }
+}
+
+list_objects <- ls(DEG.env)
+save(list = list_objects, file = here("Outputs","DEGs" ,"ON PLP Cre+ vs Sox10 Cre+ Defining DEGs.RData"), envir = DEG.env)
+ 
+allobj <- ls(DEG.env)
+alldf <- sapply(allobj, get, simplify = FALSE, envir = DEG.env)
+alldf <- alldf[sapply(alldf, inherits, "data.frame")]
+alldf <- alldf[order(as.numeric(names(alldf)))]
+ 
+write.xlsx(alldf, sheetName = names(alldf), file = here("Outputs","DEGs", "ON PLP Cre+ vs Sox10 Cre+ Defining DEGs.xlsx"))
+
+```
+
+## Session Info
+
+```{r, echo=TRUE, warning=FALSE, error=FALSE, message=FALSE}
+sessionInfo()
+```
+
+
+  

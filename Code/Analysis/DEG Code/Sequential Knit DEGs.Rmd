@@ -1,0 +1,43 @@
+---
+title: "Sequential Knit of DEG files"
+author: "Jonathan Nelson and Katie Emberley"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  html_document: 
+    toc: yes
+    toc_depth: 3
+    toc_float: true
+    number_sections: yes
+    theme: bootstrap
+    df_print: paged
+    code_folding: hide
+    highlight: pygments
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load new packages, echo=FALSE, warning=FALSE, error=FALSE, message=FALSE}
+
+if (!require("knitr")) {install.packages("knitr"); require("knitr")}
+if (!require("here")) {install.packages("here"); require("here")}
+if (!require("dplyr")) {install.packages("dplyr"); require("dplyr")}
+```
+
+```{r message = F}
+rmarkdown::render(here("Code", "Analysis", "DEG Code", "ON_Combined Cluster Defining DEGs.Rmd"))
+rmarkdown::render(here("Code", "Analysis", "DEG Code", "ON_Combined Het vs Control DEGs.Rmd"))
+rmarkdown::render(here("Code", "Analysis", "DEG Code", "ON_Combined PLP Cre DEGs.Rmd"))
+rmarkdown::render(here("Code", "Analysis", "DEG Code", "ON_Combined PLP Cre vs Sox10 Cre DEGs.Rmd"))
+rmarkdown::render(here("Code", "Analysis", "DEG Code", "ON_Combined Sox10 Cre DEGs.Rmd"))
+```
+
+
+# Session Info
+```{r, echo=TRUE, warning=FALSE, error=FALSE, message=FALSE}
+sessionInfo()
+```
+
+
+  
