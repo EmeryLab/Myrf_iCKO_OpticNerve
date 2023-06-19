@@ -1,0 +1,43 @@
+---
+title: "Optic Nerve Hets vs WT DEG list"
+author: "Jonathan Nelson and Katie Emberley"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  html_document: 
+    toc: yes
+    toc_depth: 3
+    toc_float: true
+    number_sections: yes
+    theme: bootstrap
+    df_print: paged
+    code_folding: hide
+    highlight: pygments
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load new packages, echo=FALSE, warning=FALSE, error=FALSE, message=FALSE}
+
+if (!require("knitr")) {install.packages("knitr"); require("knitr")}
+if (!require("here")) {install.packages("here"); require("here")}
+if (!require("dplyr")) {install.packages("dplyr"); require("dplyr")}
+here()
+```
+
+```{r message = F}
+rmarkdown::render(here("Code", "Analysis", "Microglia Subclustering Code", "ON_Combined_Microglia.Rmd"))
+rmarkdown::render(here("Code", "Analysis", "Microglia Subclustering Code", "ON_Combined_Microglia_DEGs.Rmd"))
+rmarkdown::render(here("Code", "Analysis", "Microglia Subclustering Code", "ON_Combined_Microglia_DEG_Pathways Analysis.Rmd"))
+rmarkdown::render(here("Code", "Analysis", "ON_Combined_Microglia_Psuedolineage Analysis.Rmd"))
+```
+
+
+# Session Info
+```{r, echo=TRUE, warning=FALSE, error=FALSE, message=FALSE}
+sessionInfo()
+```
+
+
+  
