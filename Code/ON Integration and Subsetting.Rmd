@@ -1,0 +1,473 @@
+---
+title: "Optic Nerve Integration and subsetting"
+author: "Katie Emberley, Jonathan Nelson, Greg Duncan, and Jeremiah Reyes"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document: 
+    toc: yes
+    toc_depth: 3
+    toc_float: true
+    number_sections: yes
+    theme: bootstrap
+    df_print: paged
+    code_folding: hide
+    highlight: pygments
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load Packages
+```{r load new packages, echo=TRUE, error=FALSE, message=FALSE, warning=FALSE}
+
+if (!require("knitr")) {install.packages("knitr"); require("knitr")}
+if (!requireNamespace('BiocManager', quietly = TRUE)) {install.packages('BiocManager'); require("BiocManager")}
+if (!require("dplyr")) {install.packages("dplyr"); require("dplyr")}
+if (!require("stringr")) {install.packages("stringr"); require("stringr")}
+if (!require("Seurat")) {install.packages("Seurat"); require("Seurat")}
+if (!require("sctransform")) {install.packages("sctransform"); require("sctransform")}
+if (!require("glmGamPoi")) {BiocManager::install('glmGamPoi'); require("glmGamPoi")}
+if (!require("patchwork")) {install.packages("patchwork"); require("patchwork")}
+if (!require("ggplot2")) {install.packages("ggplot2"); require("ggplot2")}
+if (!require("EnhancedVolcano")) {BiocManager::install('EnhancedVolcano'); require("EnhancedVolcano")}
+if (!require("DESeq2")) {BiocManager::install('DESeq2'); require("DESeq2")}
+if (!require("tidyverse")) {install.packages("tidyverse"); require("tidyverse")}
+if (!require("RColorBrewer")) {install.packages("RColorBrewer"); require("RColorBrewer")}
+if (!require("car")) {install.packages("car"); require("car")}
+if (!require("openxlsx")) {install.packages("openxlsx"); require("openxlsx")}
+if (!require("readxl")) {install.packages("readxl"); require("readxl")}
+if (!require("ggrepel")) {install.packages("ggrepel"); require("ggrepel")}
+if (!require("gghighlight")) {install.packages("gghighlight"); require("gghighlight")}
+if (!require("ggpmisc")) {install.packages("ggpmisc"); require("ggpmisc")}
+if (!require("data.table")) {install.packages("data.table"); require("data.table")}
+if (!require("here")) {install.packages("here"); require("here")}
+if (!require("NatParksPalettes")) {install.packages("NatParksPalettes"); require("NatParksPalettes")}
+```
+
+
+# Set Seed
+This ensures the knit file reflects the console. 
+```{r}
+set.seed(224)
+```
+
+# Loading Filtered Seurat Object
+These files are post-QC with nFeature and nCount filtering. No doublet-finder run as batch effect with Day2 inaccurately denoting doublets. 
+
+ON7 is excluded from the dataset as it failed QC pre-processing. ON7 is a control animal. 
+```{r echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+ON1 <- readRDS(here("Outputs", "QC Objects", "QC_GDMP_ON_1.rds"))
+ON2 <- readRDS(here("Outputs", "QC Objects", "QC_GDMP_ON_2.rds"))
+ON3 <- readRDS(here("Outputs", "QC Objects", "QC_GDMS_ON_3.rds"))
+ON4 <- readRDS(here("Outputs", "QC Objects", "QC_GDMS_ON_4.rds"))
+ON5 <- readRDS(here("Outputs", "QC Objects", "QC_GDMP_ON_5.rds"))
+ON6 <- readRDS(here("Outputs", "QC Objects", "QC_GDMP_ON_6.rds"))
+#ON7 <- readRDS(here("Outputs", "QC Objects", "QC_GDMS_ON_7.rds"))
+ON8 <- readRDS(here("Outputs", "QC Objects", "QC_GDMS_ON_8.rds"))
+```
+
+# Nuclei Entering the Analysis Pipeline
+The following shows the number of nuclei post-QC. Numbers in `# (10X Count)` are the starting numbers for reference.  
+Values appear in the Environment when running the `rmd`.
+```{r echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+ON1.nuclei <- nrow(ON1@meta.data) # 7822
+ON1.nuclei
+ON2.nuclei <- nrow(ON2@meta.data) # 9464
+ON2.nuclei
+ON3.nuclei <- nrow(ON3@meta.data) # 3686
+ON3.nuclei
+ON4.nuclei <- nrow(ON4@meta.data) # 6548
+ON4.nuclei
+ON5.nuclei <- nrow(ON5@meta.data) # 13124
+ON5.nuclei
+ON6.nuclei <- nrow(ON6@meta.data) # 8469
+ON6.nuclei
+#ON7.nuclei <- nrow(ON7@meta.data) # 3869
+#ON7.nuclei
+ON8.nuclei <- nrow(ON8@meta.data) # 7277
+ON8.nuclei
+
+```
+
+# Merging Replicates
+```{r echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+
+ON_Combined <- merge(ON1, y = c(ON2, ON3, ON4, ON5, ON6, ON8), add.cell.ids = c("ON1", "ON2", "ON3", "ON4", "ON5", "ON6", "ON8"), project = "OpticNerve")
+
+```
+
+## Sanity Check
+```{r echo=FALSE, error=FALSE, message=FALSE, warning=FALSE}
+
+head(colnames(ON_Combined))
+tail(colnames(ON_Combined))
+unique(sapply(X = strsplit(colnames(ON_Combined), split = "_"), FUN = "[", 1))
+table(ON_Combined$orig.ident)
+head(ON_Combined@meta.data)
+
+#To save RAM
+rm(ON1, ON2, ON3, ON4, ON5, ON6, ON8)
+```
+
+
+## nCount Lower Filter
+In individual QC files, we did not include a floor filter for `nCount_RNA`. This step adds a floor of `nCount_RNA` > 1250. Combined with the individual QC done prior to the integration, all samples have the following filtering:
++ 1,250 < `nCount_RNA` < 10,000
++ 1,000 < `nFeature_RNA` < 4,000
+
+Note sample ON3 and ON5 pre-filter have a lot of debris that CellRanger included as "nuclei". We know this, as the maximum number of nuclei is 10,000 per sample and pre-filter are being reported to be greater than 10,000 nuclei. Creating a lower-bound for `nCount_RNA` corrects for the CellRanger error and removes debris. 
+```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.show='hide', fig.align = 'center'}
+VlnPlot(ON_Combined, feature = "nCount_RNA", group.by = "Replicate")
+VlnPlot(ON_Combined, feature = "nCount_RNA", group.by = "Day_Nuclei_Isolated")
+ON_Combined <- subset(ON_Combined, nCount_RNA > 1250)
+VlnPlot(ON_Combined, feature = "nCount_RNA", group.by = "Replicate")
+VlnPlot(ON_Combined, feature = "nCount_RNA", group.by = "Day_Nuclei_Isolated")
+
+# New number of nuclei per replicate
+colSums(table(Idents(ON_Combined), ON_Combined$Replicate))
+
+nuclei.df <- data.frame(Replicate = c(1:6, 8),
+                        Pre_Filter_Nuclei = c(7822, 9464, 36860, 6548, 13124, 8469, 7277),
+                        Post_Filter_Nuclei = c(7818, 9464, 3679, 6529, 11195, 8185, 7079))
+print(nuclei.df)
+
+# 1 = 7818 (pre filter 7822)
+# 2 = 9464 (pre filter 9464)
+# 3 = 3679 (pre filter 36860)
+# 4 = 6529 (pre filter 6548)
+# 5 = 11195 (pre filter 13124)
+# 6 = 8185 (pre filter 8469)
+# 8 = 7079 (pre filter 7277)
+```
+
+## Data Normalization
+```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.show='hide', fig.align = 'center'}
+ON_Combined <- SCTransform(ON_Combined, method = "glmGamPoi", vars.to.regress = c("nCount_RNA"), verbose = TRUE)
+```
+
+## Principal Component Analysis
+```{r echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+ON_Combined <- RunPCA(ON_Combined, verbose = TRUE)
+ElbowPlot(ON_Combined, ndims = 50)
+```
+
+## Dataset Integration
+- Normalize datasets individually by `SCTransform()`, instead of `NormalizeData()` prior to integration.  
+- Use 3,000 or more features for analysis downstream of `sctransform`.  
+- Run the `PrepSCTIntegration()` function prior to identifying anchors.  
+- When running `FindIntegrationAnchors()`, and `IntegrateData()`, set the normalization.method parameter to the value `SCT`.  
+- When running sctransform-based workflows, including integration, **do not** run the `ScaleData()` function.
+```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center'}
+
+ON_Combined.list <- SplitObject(ON_Combined, split.by = "Replicate")
+
+ON_Combined.list <- lapply(X = ON_Combined.list, FUN = SCTransform)
+
+features <- SelectIntegrationFeatures(object.list = ON_Combined.list, nfeatures = 3000)
+
+ON_Combined.list <- PrepSCTIntegration(object.list = ON_Combined.list, anchor.features = features)
+
+anchors <- FindIntegrationAnchors(object.list = ON_Combined.list,
+                                  reduction = "rpca",
+                                  normalization.method = "SCT",
+                                  anchor.features = features)
+
+ON_Combined <- IntegrateData(anchorset = anchors,
+                          normalization.method = "SCT")
+
+```
+
+## Save and Load Intermediate RDS 
+```{r message = F}
+saveRDS(ON_Combined, here("Outputs", "Intermediate Objects", "ON_Combined.intermediate_1.rds"))
+
+#ON_Combined <- readRDS(here("Outputs", "Intermediate Objects", ON_Combined.intermediate_1.rds")) 
+```
+
+# Remove Neurons
+In the QC step for each file, we discovered neuronal nuclei contamination and therefore removed them from further analysis. 
+```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center'}
+# Cluster to identify the neurons
+DefaultAssay(ON_Combined) <- "integrated"
+ON_Combined <- RunPCA(ON_Combined, verbose = FALSE)
+ON_Combined <- RunUMAP(ON_Combined, dims = 1:35)
+ 
+ON_Combined <- FindNeighbors(ON_Combined, reduction = "pca", dims = 1:35)
+ON_Combined <- FindClusters(ON_Combined, resolution = 0.1)
+
+DimPlot(ON_Combined, reduction = "umap", label = TRUE)
+
+# UMAPs with neuron markers
+neuron_markers <- c("Rbfox3", "Syt7", "Snap25")
+
+DefaultAssay(ON_Combined) <- "RNA"
+
+FeaturePlot(ON_Combined, feature = neuron_markers, label = T)
+
+# Remove neuronal clusters 7, 8, 9
+ON_Combined <- subset(ON_Combined, idents = c("9", "7", "8"), invert = T)
+
+# Check to make sure neurons removed
+FeaturePlot(ON_Combined, feature = neuron_markers, label = T)
+```
+
+## Save and Load RDS 
+```{r message = F}
+saveRDS(ON_Combined, here("Outputs", "Intermediate Objects", "ON_Combined.intermediate_2_noneurons.rds"))
+
+#ON_Combined <- readRDS(here(""Outputs", "Intermediate Objects", "ON_Combined.intermediate_2_noneurons.rds"))
+```
+
+# UMAP and Cluster Identification
+```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center'}
+DefaultAssay(ON_Combined) <- "integrated"
+ON_Combined <- RunPCA(ON_Combined, verbose = FALSE)
+ON_Combined <- RunUMAP(ON_Combined, dims = 1:33)
+ 
+ON_Combined <- FindNeighbors(ON_Combined, reduction = "pca", dims = 1:33)
+ON_Combined <- FindClusters(ON_Combined, resolution = 3)
+
+DimPlot(ON_Combined, reduction = "umap", label = TRUE, repel = T)
+
+DimPlot(ON_Combined, reduction = "umap", group.by = "Replicate")
+
+DimPlot(ON_Combined, reduction = "umap", group.by = "Genotype")
+DimPlot(ON_Combined, reduction = "umap", split.by = "Genotype", label = T, repel = T)
+
+FeaturePlot(ON_Combined, feature = "nCount_RNA", label = T, repel = T)
+```
+
+## Cluster Identification
+```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center'}
+DefaultAssay(ON_Combined) <-"RNA"
+
+identification_markers <- c("Pdgfra", "Bmp4", "Tcf7l2", "Fyn", "Kirrel3", "Mobp", "Csmd1", "Sox10", "Cx3cr1", "P2ry12", "Ptprc", "Gfap", "Pdgfrb", "Flt1", "Cldn5", "Cd3g", "Cd8a", "Skap1", "Slc6a13", "Slc4a10")
+
+for (i in identification_markers)
+{
+  A<- FeaturePlot(ON_Combined, features = i)
+  print(A)
+}
+```
+
+### Mystery Cluster 46 Identification
+```{r, echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center', fig.width = 10, fig.height = 5}
+DefaultAssay(ON_Combined) <- "RNA"
+
+# Identify all significant markers
+markers.46 <- FindMarkers(ON_Combined, ident.1 = "46", logfc.threshold = 0.58, min.pct = 0.25)
+
+# Prepare dataframe for export
+markers.46 <- markers.46 %>% 
+  rownames_to_column(var="SYMBOL")
+
+# Graph top 4 markers and nCounts/nFeatures
+markers.46 %>%
+  top_n(n = 4, wt = avg_log2FC) -> top4
+
+FeaturePlot(ON_Combined, features = top4$SYMBOL, label = T)
+FeaturePlot(ON_Combined, features = "nCount_RNA", label = T)
+FeaturePlot(ON_Combined, features = "nFeature_RNA", label = T)
+
+# Write Excel file
+markers.46 = markers.46[order(markers.46[,"avg_log2FC"], decreasing = TRUE),]
+write.xlsx(markers.46, file=here("Outputs", "DEGs", 'Mystery Cluster 46 DEGs.xlsx'))
+```
+
+### Mystery Cluster 58 Identification 
+```{r, echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center', fig.width = 10, fig.height = 5}
+DefaultAssay(ON_Combined) <- "RNA"
+
+# Identify all significant markers
+markers.58 <- FindMarkers(ON_Combined, ident.1 = "58", logfc.threshold = 0.58, min.pct = 0.25)
+
+# Prepare dataframe for export
+markers.58 <- markers.58 %>% 
+  rownames_to_column(var="SYMBOL")
+
+# Graph top 4 markers and nCounts/nFeatures
+markers.58 %>%
+  top_n(n = 4, wt = avg_log2FC) -> top4
+
+FeaturePlot(ON_Combined, features = top4$SYMBOL, label = T)
+FeaturePlot(ON_Combined, features = "nCount_RNA", label = T)
+FeaturePlot(ON_Combined, features = "nFeature_RNA", label = T)
+
+# Write Excel file
+markers.58 = markers.58[order(markers.58[,"avg_log2FC"], decreasing = TRUE),]
+write.xlsx(markers.58, file=here("Outputs", "DEGs", 'Mystery Cluster 58 DEGs.xlsx'))
+```
+
+# Remove Cluster 46 and Cluster 58
+```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center'}
+filtered.clusters <- c(0:45, 47:57, 59:60)
+
+# Remove clusters 46 and 58
+ON_Combined <- subset(ON_Combined, idents = filtered.clusters)
+
+# Sanity Check
+DimPlot(ON_Combined, reduction = "umap", label = T)
+```
+
+# Cluster Renaming
+`OPCs` = Oligodendrocyte precursor cells
+`COP1` = Committed progeneitor cells 1
+`COP2` = Committed progeneitor cells 2
+`NFOLs` = Newly formed oligodendrocytes
+`MFOLs` = Myelin forming oligodendrocytes
+`MOLs` = Mature oligodendrocytes
+`VLMCs` = Vascular leptomeningeal cells 
+`ABCs` = Arachnoid barrier cells
+```{r}
+#Rename known clusters adding a column of metadata; old identity class is saved in seurat_clusters"
+ON_Combined@meta.data <- ON_Combined@meta.data %>% mutate(named.clusters = dplyr::case_when(
+                               seurat_clusters == '19' ~ "OPCs",
+                               seurat_clusters =='59' ~ "OPCs",
+                               seurat_clusters == '60' ~ "OPCs",
+                               seurat_clusters =='30' ~ "OPCs",
+                               seurat_clusters =='55' ~ "OPCs",
+                               seurat_clusters == '40' ~ "COP1",
+                               seurat_clusters == '41' ~ "COP2",
+                               seurat_clusters == '56' ~ "COP2",
+                               seurat_clusters =='47' ~ "NFOLs",
+                               seurat_clusters == '26' ~ "MFOLs",
+                               seurat_clusters =='12' ~ "MFOLs",
+                               seurat_clusters =='22' ~ "MFOLs",
+                               seurat_clusters == '1' ~ "MFOLs",
+                               seurat_clusters == '25' ~ "MFOLs",
+                               seurat_clusters =='43' ~ "MFOLs",
+                               seurat_clusters =='42' ~ "MFOLs",
+                               seurat_clusters =='34' ~ "MFOLs",
+                               seurat_clusters == '0' ~ "MOLs",
+                               seurat_clusters == '10' ~ "MOLs",
+                               seurat_clusters == '21' ~ "MOLs",
+                               seurat_clusters == '32' ~ "MOLs",
+                               seurat_clusters == '53' ~ "MOLs",
+                               seurat_clusters == '29' ~ "MOLs",
+                               seurat_clusters == '11' ~ "MOLs",
+                               seurat_clusters == '17' ~ "MOLs",
+                               seurat_clusters == '27' ~ "MOLs",
+                               seurat_clusters == '44' ~ "MOLs",
+                               seurat_clusters == '5' ~ "MOLs",
+                               seurat_clusters == '33' ~ "MOLs",
+                               seurat_clusters == '4' ~ "KOOLs",
+                               seurat_clusters == '7' ~ "KOOLs",
+                               seurat_clusters == '36' ~ "KOOLs",
+                               seurat_clusters =='49' ~ "Microglia",
+                               seurat_clusters =='14' ~ "Microglia",
+                               seurat_clusters =='39' ~ "Microglia",
+                               seurat_clusters =='8' ~ "Microglia",
+                               seurat_clusters =='18' ~ "Microglia", 
+                               seurat_clusters =='20' ~ "Microglia",
+                               seurat_clusters == '2' ~ "Microglia",
+                               seurat_clusters == '6' ~ "Microglia",
+                               seurat_clusters =='16' ~ "Microglia",
+                               seurat_clusters =='31' ~ "Microglia",
+                               seurat_clusters =='37'~ "Microglia",
+                               seurat_clusters == '35' ~ "Astrocytes",
+                               seurat_clusters == '3' ~ "Astrocytes",
+                               seurat_clusters =='48' ~ "Astrocytes",
+                               seurat_clusters =='45' ~ "Astrocytes",
+                               seurat_clusters =='54' ~ "Astrocytes",
+                               seurat_clusters == '51' ~ "Astrocytes",
+                               seurat_clusters == '15' ~ "Astrocytes",
+                               seurat_clusters == '23' ~ "VLMCs",
+                               seurat_clusters =='28' ~ "VLMCs",
+                               seurat_clusters =='13' ~ "VLMCs",
+                               seurat_clusters =='38' ~ "VLMCs",
+                               seurat_clusters =='24' ~ "ABCs",
+                               seurat_clusters =='9' ~ "ABCs",
+                               seurat_clusters == '50' ~ "Endothelial",
+                               seurat_clusters == '57' ~ "Pericytes",
+                               seurat_clusters == '52' ~ "Peripheral Immune"
+                                ))
+
+head(ON_Combined@meta.data)
+
+#Change the levels of the object so the replicates are in particular order
+named_levels <- c("OPCs","COP1","COP2","NFOLs","MFOLs", "MOLs", "KOOLs","Microglia", "Peripheral Immune","Astrocytes", "VLMCs","ABCs","Endothelial","Pericytes")
+
+ON_Combined@meta.data$named.clusters <- factor((ON_Combined@meta.data$named.clusters), levels = named_levels)
+
+# Change active ident to the new column with the names
+ON_Combined <- SetIdent(ON_Combined, value = ON_Combined@meta.data$named.clusters)
+                                
+DimPlot(ON_Combined, reduction = "umap", cols = natparks.pals("Torres", 16))
+```
+
+## Save and Load RDS
+```{r}
+saveRDS(ON_Combined, here("Outputs", "Intermediate Objects", "ON_Combined.intermediate_3_named.rds"))
+
+#ON_Combined <- readRDS(here("Outputs", "Intermediate Objects", "ON_Combined.intermediate_3_named.rds")
+```
+
+# DEG Comparison Between Control Genotypes
+Very few significant and large DEG differences between the two control groups for OPCs, VLMCA and VLMCB clusters which should not be affected by the Cre whatsoever. Therefore, we combined the WT genotypes into "control".
+```{r control genotye DEGs, echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center'}
+OPC.control <- FindMarkers(ON_Combined, ident.1 = "PLP WT", ident.2 = "Sox10 WT", group.by = "Genotype", subset.ident = "OPCs", logfc.threshold = 0.58)
+
+VLMCs.control <- FindMarkers(ON_Combined, ident.1 = "PLP WT", ident.2 = "Sox10 WT", group.by = "Genotype", subset.ident = "VLMCs", logfc.threshold = 0.58)
+
+ABCs.control <- FindMarkers(ON_Combined, ident.1 = "PLP WT", ident.2 = "Sox10 WT", group.by = "Genotype", subset.ident = "ABCs", logfc.threshold = 0.58)
+```
+
+# Add MetaData to Combine WT Genotypes
+```{r rename, echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center', width = 20, height = 5}
+ON_Combined@meta.data <- ON_Combined@meta.data %>% mutate(combined.genotype = dplyr::case_when(
+  Genotype == "PLP Het" ~ "PLP Cre+",
+  Genotype == "PLP WT" ~ "Control",
+  Genotype == "Sox10 Het" ~ "Sox10 Cre+",
+  Genotype == "Sox10 WT" ~ "Control"))
+
+DefaultAssay(ON_Combined) <- "RNA"
+VlnPlot(ON_Combined, "nFeature_RNA", split.by = "combined.genotype")
+DimPlot(ON_Combined, reduction = "umap", split.by = "combined.genotype", cols = natparks.pals("Torres", 16))
+```
+
+# Save Final RDS
+```{r}
+saveRDS(ON_Combined, here("Outputs", "ON_Combined_Final.rds"))
+
+#ON_Combined<-readRDS(here("Outputs", "ON_Combined_Final.rds"))
+```
+
+# Subset Microglia and Save RDS
+```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center'}
+ON_Microglia <-subset(ON_Combined, idents = c("Microglia"))
+
+ON_Microglia
+
+DimPlot(ON_Microglia, reduction = "umap")
+
+saveRDS(ON_Microglia, here("Outputs", "Subclusters", "ON_Microglia.rds"))
+```
+
+# Subset Oligolineage and Save RDS
+```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center'}
+ON_OL <-subset(ON_Combined, idents = c("OPCs", "COP1", "COP2", "NFOLs", "MFOLs", "MOLs", "KOOLs"))
+
+ON_OL
+
+DimPlot(ON_OL, reduction = "umap", label = TRUE)
+
+saveRDS(ON_OL, here("Outputs", "Subclusters", "ON_Oligolineage.rds"))
+```
+
+# Subset Astrocytes and Save RDS
+```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center'}
+ON_Astros <-subset(ON_Combined, idents = c("Astrocytes"))
+
+ON_Astros
+
+DimPlot(ON_Astros, reduction = "umap", label = TRUE)
+
+saveRDS(ON_Astros, here("Outputs", "Subclusters", "ON_Astrocytes.rds"))
+```
+
+# Session Info
+```{r sessioninfo, echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+
+sessionInfo()
+```
+
