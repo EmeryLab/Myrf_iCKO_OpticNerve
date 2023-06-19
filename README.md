@@ -35,7 +35,7 @@ Step 3: Download and place Cell Ranger output folders into the folder
 
 ".../GEO/Cell Ranger" filtered_feature_bc_matrix.h5 raw_feature_bc_matrix.h5
 
-Step 4: Open RMD File "Sequential Knit Pre-Processing and Analysis Files.Rmd" in folder ".../Code" and run the chunk to knit all of the files. The pre-processing files must be knit first, then the "subsetting and integration". After that, the remaining files are optional. If you would rather run the files individually, follow the same sequence:
+Step 4: Open RMD File "Sequential Knit Pre-Processing and Analysis Files.Rmd" in main folder and run the chunk to knit all of the files. The pre-processing files must be knit first, then the "subsetting and integration". After that, the remaining files are optional. If you would rather run the files individually, follow the same sequence:
 
 + Pre-processing code found in folder: ".../Code/Pre-processing" : Run RMD files in order (1-8)
 + Integration and Subsetting can be found in folder: ".../Code" : Run RMD File "ON Integration and Subsetting.Rmd"
