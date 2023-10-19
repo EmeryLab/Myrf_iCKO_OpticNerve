@@ -62,6 +62,5 @@ If you knit the files or if you run individually, all objects and RData will be 
 + Subclusters (objects created following the integration of the replicates that subsets individual clusters into their own object e.g. Microglia)
 + DEGs (differentially expressed genes for cluster identification and between genotypes)
 
-## Alternative Viewing Options
-1. The folder on this repository titled "Knit Files" includes the Html version of each Rmd file that has been `knit`. The code is viewable with the desired outputs.
-2. A user-friendly Shiny App is available at https://emerylab.shinyapps.io/Myrf_iCKO_OpticNerve/ where users can look at gene expression across our dataset without needing to code anything. 
+## Interactive Viewing Option
+A user-friendly Shiny App is available at https://emerylab.shinyapps.io/Myrf_iCKO_OpticNerve/ where users can look at gene expression across our dataset without needing to code anything. 
