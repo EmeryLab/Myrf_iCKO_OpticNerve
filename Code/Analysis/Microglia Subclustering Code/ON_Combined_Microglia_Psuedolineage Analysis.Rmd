@@ -148,7 +148,7 @@ plot_cells(cds = cds.OL.v2,
 ```
 
 # Psuedolineage Analysis Using Monocle3 - Priniciple Node = 4
-Principle Node selected to start at the "stereotypical" WAM population (Cluster 4)
+BAM population (Cluster 4)
 ```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center'}
 
 # convert to cell_data_set object (cds.OL)
@@ -208,6 +208,7 @@ plot_cells(cds = cds.OL.v2,
 ```
 
 # PLP Psuedolineage Analysis Using Monocle3 - Principle Node = 2
+Homeosatis population (cluster 2)
 ```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center'}
 
 ON.MG.PLP <- subset(x = ON.MG, subset = combined.genotype == c("PLP Cre+"))
@@ -269,6 +270,7 @@ plot_cells(cds = cds.OL.PLPv2,
 ```
 
 # PLP Psuedolineage Analysis Using Monocle3 - Principle Node = 4
+BAM cluster 
 ```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center'}
 
 ON.MG.PLP <- subset(x = ON.MG, subset = combined.genotype == c("PLP Cre+"))
@@ -330,6 +332,7 @@ plot_cells(cds = cds.OL.PLPv2,
 ```
 
 # Sox10 Psuedolineage Analysis Using Monocle3 - Principle Node = 2
+Homestatic Cluster
 ```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center'}
 ON.MG.Sox10 <- subset(x = ON.MG, subset = combined.genotype == c("Sox10 Cre+"))
 DimPlot(ON.MG.Sox10, reduction = "umap", group.by = "combined.genotype", cols = natparks.pals("Yellowstone"))
@@ -390,6 +393,7 @@ plot_cells(cds = cds.OL.Sox10v2,
 ```
 
 # Sox10 Psuedolineage Analysis Using Monocle3 - Principle Node = 4
+BAM cluster
 ```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center'}
 ON.MG.Sox10 <- subset(x = ON.MG, subset = combined.genotype == c("Sox10 Cre+"))
 DimPlot(ON.MG.Sox10, reduction = "umap", group.by = "combined.genotype", cols = natparks.pals("Yellowstone"))

@@ -186,6 +186,22 @@ DefaultAssay(ON_MG) <- "SCT"
 DoHeatmap(ON_MG, features = top10$gene, size = 3) + NoLegend() + theme(axis.text.y = element_text(size = 5))
 ```
 
+### Rename the Microglia Clusters
+```{r}
+ON_MG@meta.data <- ON_MG@meta.data %>% mutate(named.clusters = dplyr::case_when(
+  combined.clusters == "0" ~ "DIM1",
+  combined.clusters == "1" ~ "DIM2",
+  combined.clusters == "2" ~ "Homeostatic",
+  combined.clusters == "3" ~ "DIM3",
+  combined.clusters == "4" ~ "BAM"))
+
+# Change active ident to the new column with the names
+ON_MG <- SetIdent(ON_MG, value = ON_MG@meta.data$named.clusters)
+
+DimPlot(ON_MG, reduction = "umap", label = T)
+
+```
+
 ### Prop Table Visualization
 ```{r echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
 #combined.genotype Prop Table

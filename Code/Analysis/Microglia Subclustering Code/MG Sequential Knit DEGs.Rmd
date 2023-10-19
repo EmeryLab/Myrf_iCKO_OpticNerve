@@ -1,5 +1,5 @@
 ---
-title: "Optic Nerve Hets vs WT DEG list"
+title: "Sequential Knit of Microglia Subclustering COde
 author: "Jonathan Nelson and Katie Emberley"
 date: "`r format(Sys.time(), '%d %B %Y')`"
 output:
@@ -30,7 +30,7 @@ here()
 rmarkdown::render(here("Code", "Analysis", "Microglia Subclustering Code", "ON_Combined_Microglia.Rmd"))
 rmarkdown::render(here("Code", "Analysis", "Microglia Subclustering Code", "ON_Combined_Microglia_DEGs.Rmd"))
 rmarkdown::render(here("Code", "Analysis", "Microglia Subclustering Code", "ON_Combined_Microglia_DEG_Pathways Analysis.Rmd"))
-rmarkdown::render(here("Code", "Analysis", "ON_Combined_Microglia_Psuedolineage Analysis.Rmd"))
+rmarkdown::render(here("Code", "Analysis", "Microglia Subclustering Code", "ON_Combined_Microglia_Psuedolineage Analysis.Rmd"))
 ```
 
 

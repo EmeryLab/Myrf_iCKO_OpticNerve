@@ -1,0 +1,112 @@
+---
+title: "Optic Nerve Combined: Microglia DEG analysis"
+author: "Katie Emberley, Jonathan Nelson, and Jeremiah Reyes"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document: 
+    toc: yes
+    toc_depth: 3
+    toc_float: true
+    number_sections: yes
+    theme: bootstrap
+    df_print: paged
+    code_folding: hide
+    highlight: pygments
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Load Packages
+```{r echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+
+if (!require("knitr")) {install.packages("knitr"); require("knitr")}
+if (!require("dplyr")) {install.packages("dplyr"); require("dplyr")}
+if (!require("stringr")) {install.packages("stringr"); require("stringr")}
+if(!require("SeuratData")){install.packages("SeuratData"); require("SeurateData")}
+if (!require("Seurat")) {install.packages("Seurat"); require("Seurat")}
+if (!require("sctransform")) {install.packages("sctransform"); require("sctransform")}
+if (!require("patchwork")) {install.packages("patchwork"); require("patchwork")}
+if (!require("ggplot2")) {install.packages("ggplot2"); require("ggplot2")}
+if (!require("tidyverse")) {install.packages("tidyverse"); require("tidyverse")}
+if (!require("openxlsx")) {install.packages("openxlsx"); require("openxlsx")}
+if (!require("readxl")) {install.packages("readxl"); require("readxl")}
+if (!require("data.table")) {install.packages("data.table"); require("data.table")}
+if (!require("here")) {install.packages("here"); require("here")}
+if (!require("writexl")) {install.packages("writexl"); require("writexl")}
+
+if (!require("AnnotationHub")) {BiocManager::install('AnnotationHub'); require("AnnotationHub")}
+if (!require("enrichplot")) {BiocManager::install('enrichplot'); require("enrichplot")}
+if (!require("ggupset")) {install.packages("ggupset"); require("ggupset")}
+if (!require("tidyverse")) {install.packages("tidyverse"); require("tidyverse")}
+
+if(!require("NatParksPalettes")){(install.packages("NatParksPalettes")); require("NatParksPalettes")}
+
+```
+
+# Load Subclustered MG object
+```{r}
+ON_MG <- readRDS(here("Outputs","Subclusters", "Microglia_Subclustering.rds"))
+```
+
+# WT BAM cluster identification
+```{r echo=TRUE, error=FALSE, message=FALSE, warning=FALSE}
+DefaultAssay(ON_MG) <- "RNA"
+DimPlot(ON_MG, reduction = "umap", label = T)
+
+#Cluster 2 and 4 WT DEGs
+head(ON_MG@active.ident)
+Idents(ON_MG) <- "combined.genotype"
+head(ON_MG@active.ident)
+
+ON_MG_Control <- subset(ON_MG, ident = "Control")
+Idents(ON_MG_Control) <- "combined.clusters"
+Idents(ON_MG) <- "combined.clusters"
+DimPlot(ON_MG_Control, reduction = "umap", label = T)
+
+cluster2 <- FindMarkers(ON_MG_Control, ident.1 = "2", logfc.threshold = 0.322, min.pct = 0.25)
+
+cluster2 <- cluster2 %>%
+  rownames_to_column(var="gene") %>%
+  filter(p_val_adj < 0.05)
+
+write.xlsx(cluster2, file = here("WT Cluster2 DEGs.xlsx"))
+
+cluster4 <- FindMarkers(ON_MG_Control, ident.1 = "4", logfc.threshold = 0.322, min.pct = 0.25)
+
+cluster4 <- cluster4 %>%
+  rownames_to_column(var="gene") %>%
+  filter(p_val_adj < 0.05)
+
+write.xlsx(cluster4, file = here("WT Cluster4 DEGs.xlsx"))
+```
+
+# Rename
+```{r message = F}
+ON_MG@meta.data <- ON_MG@meta.data %>% mutate(microglia.named = dplyr::case_when(
+  combined.clusters == "2" ~ "Homeostatic",
+  combined.clusters == "4" ~ "BAM",
+  combined.clusters == "0" ~ "DAM1",
+  combined.clusters == "1" ~ "DAM2",
+  combined.clusters == "3" ~ "DAM3"))
+
+ON_MG <- SetIdent(ON_MG, value = ON_MG@meta.data$combined.clusters)
+
+named_levels <- c("Homeostatic", "BAM", "DAM1", "DAM2", "DAM3")
+
+ON_MG@meta.data$microglia.named <- factor((ON_MG@meta.data$microglia.named), levels= named_levels)
+ON_MG <- SetIdent(ON_MG, value = ON_MG@meta.data$microglia.named)
+
+DimPlot(ON_MG, reduction = "umap", label = T)
+
+```
+
+
+
+# Session Info
+```{r echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+
+sessionInfo()
+```
+

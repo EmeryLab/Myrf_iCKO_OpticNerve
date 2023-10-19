@@ -77,36 +77,29 @@ ClusterProfiler paper: G Yu, LG Wang, Y Han, QY He. clusterProfiler: an R packag
 
 ClusterProfiler tutorial: https://bioc.ism.ac.jp/packages/3.7/bioc/vignettes/enrichplot/inst/doc/enrichplot.html
 
-## Reload RData for Cluster Defining DEGs and Change Object Names
+## Reload RData for Cluster Defining DEGs 
 ```{r}
 load(file = here("Outputs","DEGs","Microglia Subclustering DEGs", "Subclustering Microglia Cluster Defining DEGs.RData"))
-Cluster0<-`0`
-Cluster1<-`1`
-Cluster2<-`2`
-Cluster3<-`3`
-Cluster4<-`4`
-
-rm(`0`,`1`,`2`,`3`,`4`)
 ```
 
-## Crude Pathways Cluster 0
+## Crude Pathways for Homeostsatic Cluster
 ```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center', fig.width = 6, fig.height = 8}
 
-head(Cluster0, n = 50)
+head(Homeostatic, n = 50)
 
-ENTREZ_list <- bitr(geneID = Cluster0$SYMBOL,
+ENTREZ_list <- bitr(geneID = Homeostatic$SYMBOL,
                     fromType = "SYMBOL",
                     toType = "ENTREZID",
                     OrgDb = "org.Mm.eg.db"
                     )
 
-markers <-  ENTREZ_list %>% inner_join(Cluster0, by = "SYMBOL")
+markers <-  ENTREZ_list %>% inner_join(Homeostatic, by = "SYMBOL")
 
 # Removing genes that are not statistically significant. 
 markers <-  markers %>% dplyr::filter(p_val_adj < 0.05)
 head(markers, n = 50)
 
-# Upregulated Genes in Homeostatic MG (0)
+# Upregulated Genes in Homeostatic MG 
 
 pos.markers <-  markers %>% dplyr::filter(avg_log2FC > 0) %>%  arrange(desc(abs(avg_log2FC)))
 head(pos.markers, n = 50)
@@ -135,24 +128,24 @@ barplot(pos_go.BP, showCategory=20) +
   theme(axis.text.y = element_text(size = 12))
 ```
 
-## Crude Pathways for Cluster 1
+## Crude Pathways for DIM1
 ```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center', fig.width = 6, fig.height = 8}
 
-head(Cluster1, n = 50)
+head(DIM1, n = 50)
 
-ENTREZ_list <- bitr(geneID = Cluster1$SYMBOL,
+ENTREZ_list <- bitr(geneID = DIM1$SYMBOL,
                     fromType = "SYMBOL",
                     toType = "ENTREZID",
                     OrgDb = "org.Mm.eg.db"
                     )
 
-markers <-  ENTREZ_list %>% inner_join(Cluster1, by = "SYMBOL")
+markers <-  ENTREZ_list %>% inner_join(DIM1, by = "SYMBOL")
 
 # Removing genes that are not statistically significant. 
 markers <-  markers %>% dplyr::filter(p_val_adj < 0.05)
 head(markers, n = 50)
 
-# Upregulated Genes in Disease-Associated Microglia (Cluster1)
+# Upregulated Genes in Disease-Associated Microglia (DIM1)
 
 pos.markers <-  markers %>% dplyr::filter(avg_log2FC > 0) %>%  arrange(desc(abs(avg_log2FC)))
 head(pos.markers, n = 50)
@@ -182,7 +175,7 @@ barplot(pos_go.BP, showCategory=20) +
   theme(axis.text.y = element_text(size = 12))
 
 
-# Downregulated Genes in Homeostatic Microglia (Cluster 1)
+# Downregulated Genes in Disease-Associated Microglia (DIM1)
 
 neg.markers <-  markers %>% dplyr::filter(avg_log2FC < 0) %>%  arrange(desc(abs(avg_log2FC)))
 head(neg.markers, n = 50)
@@ -211,24 +204,24 @@ barplot(neg_go.BP, showCategory=20)+
 
 ```
 
-## Crude Pathways for Cluster 2
+## Crude Pathways for DIM2
 ```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center', fig.width = 6, fig.height = 8}
 
-head(Cluster2, n = 50)
+head(DIM2, n = 50)
 
-ENTREZ_list <- bitr(geneID = Cluster2$SYMBOL,
+ENTREZ_list <- bitr(geneID = DIM2$SYMBOL,
                     fromType = "SYMBOL",
                     toType = "ENTREZID",
                     OrgDb = "org.Mm.eg.db"
                     )
 
-markers <-  ENTREZ_list %>% inner_join(Cluster2, by = "SYMBOL")
+markers <-  ENTREZ_list %>% inner_join(DIM2, by = "SYMBOL")
 
 # Removing genes that are not statistically significant. 
 markers <-  markers %>% dplyr::filter(p_val_adj < 0.05)
 head(markers, n = 50)
 
-# Upregulated Genes in Disease-Associated Microglia (Cluster2)
+# Upregulated Genes in Disease-Associated Microglia (DIM2)
 
 pos.markers <-  markers %>% dplyr::filter(avg_log2FC > 0) %>%  arrange(desc(abs(avg_log2FC)))
 head(pos.markers, n = 50)
@@ -258,7 +251,7 @@ barplot(pos_go.BP, showCategory=20) +
   theme(axis.text.y = element_text(size = 12))
 
 
-# Downregulated Genes in Homeostatic Microglia (Cluster 1)
+# Downregulated Genes in Disease-Associated Microglia (DIM2)
 
 neg.markers <-  markers %>% dplyr::filter(avg_log2FC < 0) %>%  arrange(desc(abs(avg_log2FC)))
 head(neg.markers, n = 50)
@@ -287,24 +280,24 @@ barplot(neg_go.BP, showCategory=20)+
 
 ```
 
-## Crude Pathways for Cluster 3
+## Crude Pathways for DIM3
 ```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center', fig.width = 6, fig.height = 8}
 
-head(Cluster3, n = 50)
+head(DIM3, n = 50)
 
-ENTREZ_list <- bitr(geneID = Cluster3$SYMBOL,
+ENTREZ_list <- bitr(geneID = DIM3$SYMBOL,
                     fromType = "SYMBOL",
                     toType = "ENTREZID",
                     OrgDb = "org.Mm.eg.db"
                     )
 
-markers <-  ENTREZ_list %>% inner_join(Cluster3, by = "SYMBOL")
+markers <-  ENTREZ_list %>% inner_join(DIM3, by = "SYMBOL")
 
 # Removing genes that are not statistically significant. 
 markers <-  markers %>% dplyr::filter(p_val_adj < 0.05)
 head(markers, n = 50)
 
-# Upregulated Genes in Disease-Associated Microglia (Cluster3)
+# Upregulated Genes in Disease-Associated Microglia (DIM3)
 
 pos.markers <-  markers %>% dplyr::filter(avg_log2FC > 0) %>%  arrange(desc(abs(avg_log2FC)))
 head(pos.markers, n = 50)
@@ -334,7 +327,7 @@ barplot(pos_go.BP, showCategory=20) +
   theme(axis.text.y = element_text(size = 12))
 
 
-# Downregulated Genes in Homeostatic Microglia (Cluster 1)
+# Downregulated Genes in Disease-Associated Microglia (DIM3)
 
 neg.markers <-  markers %>% dplyr::filter(avg_log2FC < 0) %>%  arrange(desc(abs(avg_log2FC)))
 head(neg.markers, n = 50)
@@ -363,24 +356,24 @@ barplot(neg_go.BP, showCategory=20)+
 
 ```
 
-## Crude Pathways for Cluster 4
+## Crude Pathways for BAM
 ```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center', fig.width = 6, fig.height = 8}
 
-head(Cluster4, n = 50)
+head(BAM, n = 50)
 
-ENTREZ_list <- bitr(geneID = Cluster4$SYMBOL,
+ENTREZ_list <- bitr(geneID = BAM$SYMBOL,
                     fromType = "SYMBOL",
                     toType = "ENTREZID",
                     OrgDb = "org.Mm.eg.db"
                     )
 
-markers <-  ENTREZ_list %>% inner_join(Cluster4, by = "SYMBOL")
+markers <-  ENTREZ_list %>% inner_join(BAM, by = "SYMBOL")
 
 # Removing genes that are not statistically significant. 
 markers <-  markers %>% dplyr::filter(p_val_adj < 0.05)
 head(markers, n = 50)
 
-# Upregulated Genes in Disease-Associated Microglia (Cluster4)
+# Upregulated Genes in Barrier-Associated Microglia (BAM)
 
 pos.markers <-  markers %>% dplyr::filter(avg_log2FC > 0) %>%  arrange(desc(abs(avg_log2FC)))
 head(pos.markers, n = 50)
@@ -410,7 +403,7 @@ barplot(pos_go.BP, showCategory=20) +
   theme(axis.text.y = element_text(size = 12))
 
 
-# Downregulated Genes in Homeostatic Microglia (Cluster 1)
+# Downregulated Genes in Barrier-Associated Microglia (BAM)
 
 neg.markers <-  markers %>% dplyr::filter(avg_log2FC < 0) %>%  arrange(desc(abs(avg_log2FC)))
 head(neg.markers, n = 50)
