@@ -1,7 +1,19 @@
 # Instructions for Running Myrf_iCKO_OpticNerve snRNAseq Analysis
-snRNA-seq Analysis of Demyelinating Myrf iCKO Optic Nerves
+snRNAseq Analysis of Demyelinating Myrf iCKO Optic Nerves
+This repository can be used to exactly reproduce the snRNAseq analysis done for the current publication.
 
-Katie Emberley 6.20.2023
+Katie Emberley 10.19.2023  
+
+## System Requirements
+The snRNAseq Analysis was preformed using R version 4.2.1 (2022-06-23) -- "Funny-Looking Kid"
+Copyright (C) 2022 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin17.0 (64-bit)
+
+The analysis pipeline can be conducted on any computer capable of using the "RStudio" application. 
+
+## snRNAseq Analysis Reproduction
+### Create File Structure and Download the Rmd files 
+The download will take aprox. 1hr.
 
 Step 1: Download folders and files from GitHub as a zip folder and place it on your computer.
 
@@ -31,10 +43,13 @@ For instance, if you place the main folder on your desktop, the `here()` command
    * Setup.RMD
    * ReadMe.md
    
-Step 3: Download and place Cell Ranger output folders into the folder
+Step 3: From GEO (GSE243788) download and place Cell Ranger output folders into the folder
 
-".../GEO/Cell Ranger" filtered_feature_bc_matrix.h5 raw_feature_bc_matrix.h5
+".../GEO/Cell Ranger" 
 
+Two files for every sample needed are the: `filtered_feature_bc_matrix.h5` and the `raw_feature_bc_matrix.h5` (total of 16 files). 
+
+### Run the snRNAseq Pipeline 
 Step 4: Open RMD File "Sequential Knit Pre-Processing and Analysis Files.Rmd" in main folder and run the chunk to knit all of the files. The pre-processing files must be knit first, then the "subsetting and integration". After that, the remaining files are optional. If you would rather run the files individually, follow the same sequence:
 
 + Pre-processing code found in folder: ".../Code/Pre-processing" : Run RMD files in order (1-8)
@@ -46,3 +61,7 @@ If you knit the files or if you run individually, all objects and RData will be 
 + Intermediate Objects (objects created during integration following computationally heavy tasks. These are not final objects)
 + Subclusters (objects created following the integration of the replicates that subsets individual clusters into their own object e.g. Microglia)
 + DEGs (differentially expressed genes for cluster identification and between genotypes)
+
+## Alternative Viewing Options
+1. The folder on this repository titled "Knit Files" includes the Html version of each Rmd file that has been `knit`. The code is viewable with the desired outputs.
+2. A user-friendly Shiny App is available at https://emerylab.shinyapps.io/Myrf_iCKO_OpticNerve/ where users can look at gene expression across our dataset without needing to code anything. 
