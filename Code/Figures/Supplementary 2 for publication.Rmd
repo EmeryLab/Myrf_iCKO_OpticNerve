@@ -1,0 +1,104 @@
+---
+title: "Supplementary Figure 2"
+author: "Greg Duncan, Katie Emberley and Jonathan Nelson"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document: 
+    toc: yes
+    toc_depth: 3
+    toc_float: true
+    number_sections: yes
+    theme: bootstrap
+    df_print: paged
+    code_folding: hide
+    highlight: pygments
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Load Packages
+```{r echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+if (!require("knitr")) {install.packages("knitr"); require("knitr")}
+if (!require("dplyr")) {install.packages("dplyr"); require("dplyr")}
+if (!require("stringr")) {install.packages("stringr"); require("stringr")}
+if(!require("SeuratData")){install.packages("SeuratData"); require("SeurateData")}
+if (!require("Seurat")) {install.packages("Seurat"); require("Seurat")}
+if (!require("sctransform")) {install.packages("sctransform"); require("sctransform")}
+if (!require("patchwork")) {install.packages("patchwork"); require("patchwork")}
+if (!require("ggplot2")) {install.packages("ggplot2"); require("ggplot2")}
+if (!require("tidyverse")) {install.packages("tidyverse"); require("tidyverse")}
+if (!require("RColorBrewer")) {install.packages("RColorBrewer"); require("RColorBrewer")}
+if (!require("car")) {install.packages("car"); require("car")}
+if (!require("openxlsx")) {install.packages("openxlsx"); require("openxlsx")}
+if (!require("readxl")) {install.packages("readxl"); require("readxl")}
+if (!require("ggrepel")) {install.packages("ggrepel"); require("ggrepel")}
+if (!require("gghighlight")) {install.packages("gghighlight"); require("gghighlight")}
+if (!require("ggpmisc")) {install.packages("ggpmisc"); require("ggpmisc")}
+if (!require("data.table")) {install.packages("data.table"); require("data.table")}
+if (!require("here")) {install.packages("here"); require("here")}
+if (!require("writexl")) {install.packages("writexl"); require("writexl")}
+if (!require("ggupset")) {install.packages("ggupset"); require("ggupset")}
+if (!require("tidyverse")) {install.packages("tidyverse"); require("tidyverse")}
+if (!require("RColorBrewer")) {install.packages("RColorBrewer"); require("RColorBrewer")}
+if (!require("org.Mm.eg.db")) {BiocManager::install('org.Mm.eg.db'); require("org.Mm.eg.db")}
+if (!require("tibble")) {install.packages("tibble"); require("tibble")} # rownames_to_column
+if(!require("ggforce")){install.packages("ggforce"); require("ggforce")}
+if(!require("graphlayouts")){install.packages("graphlayouts"); require("graphlayouts")}
+if (!require("clusterProfiler")) {install.packages("clusterProfiler"); require("clusterProfiler")} # bitr
+if(!require("NatParksPalettes")){(install.packages("NatParksPalettes")); require("NatParksPalettes")}
+if (!require("SeuratWrappers")) {install.packages("SeuratWrappers"); require("SeuratWrappers")}
+if (!require("Matrix")) {install.packages("Matrix"); require("Matrix")}
+if (!require("Signac")) {install.packages("Signac"); require("Signac")}
+if (!require("SeuratData")) {install.packages("SeuratData"); require("SeuratData")}
+if (!require("monocle3")) {install.packages("monocle3"); require("monocle3")}
+```
+
+# Loading Oligo-like Cells from R
+These files are post-filters individually and post-combined ON Nerve Combined.
+```{r echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+#Load the subset oligolineage subcluster
+ON.OL <- readRDS(here("Outputs","Subclusters", "ON_Oligolineage.rds")) 
+
+set.seed(224)
+
+#Create Highlight cell cell clusters using WhichCells
+ON.OL <- SetIdent(ON.OL, value = ON.OL@meta.data$combined.genotype)
+PLP_highlight <- WhichCells(ON.OL, idents = c("PLP Cre+"))
+Sox10_highlight <- WhichCells(ON.OL, idents = c( "Sox10 Cre+"))
+```
+
+# Supplementary Figure 2 Outputs
+```{r echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+
+#Supplementary Fig2.a
+KO.only <- subset(ON.OL, idents =c("Sox10 Cre+", "PLP Cre+"))
+Dimplot_KO.only <- DimPlot(KO.only, reduction = "umap", group.by = "combined.genotype", cols =c("#0167A2","#CB7122"), shuffle = T, pt.size = 1) + NoLegend() + ggtitle("Knockout Only" + theme(axis.title = element_blank()))
+Dimplot_KO.only <- Dimplot_KO.only + xlab("UMAP 1") +ylab("UMAP 2")
+print(Dimplot_KO.only)
+
+#Supplementary Fig2.c
+#Set up a list of Genes
+COP.paper = c("Bmp4", "Fyn", "Gpr17")
+COP2.genes = c("Itpkb", "Nrcam", "Sox5", "Plcb1", "Glgap1", "Ppp2r2b", "Nrxn3", "Prex2", "Prkg1")
+COP.genes = c("Neu4", "Enpp6", "Pdcd4", "Sox6", "Tns3", "Nkx2-2", "Vcan", "Ptprz1")
+Greg.up.down = c("Cspg4", "Pdgfra", "Bmp4", "Fyn", "Gpr17", "Nkx2-2", "Nrg1", "Kazn", "Itpr2", "Tmem108", "Synpr", "Glis3", "Plce1", "Chl1", "Rhoj")
+
+#Change the Active Order of Genes
+named_levels <- c("OPCs","COP1","NFOLs","COP2","KOOLs", "MFOLs", "MOLs")
+ON.OL$named.clusters <- factor((ON.OL@meta.data$named.clusters), levels = named_levels)
+ON.OL.2 <- SetIdent(ON.OL, value = ON.OL@meta.data$named.clusters)
+
+#Dotplot
+All.COP.genes <- c(COP.paper, COP.genes, COP2.genes)
+ON.OL <- SetIdent(ON.OL, value = ON.OL@meta.data$named.clusters)
+DotPlot_COPvsCOP2 <- DotPlot(ON.OL, idents=c("OPCs", "COP1", "NFOLs", "COP2", "KOOLs"), features = Greg.up.down, cols = c("cadetblue1", "darkred"), scale = FALSE, scale.by = "radius", dot.scale = 30, col.min = 0) + coord_flip()
+print(DotPlot_COPvsCOP2)
+
+```
+#Session Info
+```{r, echo=TRUE, warning=FALSE, error=FALSE, message=FALSE}
+sessionInfo()
+```
+

@@ -1,0 +1,252 @@
+---
+title: "Supplementary Figure 3"
+author: "Katie Emberley, Greg Duncan and Jonathan Nelson"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document: 
+    toc: yes
+    toc_depth: 3
+    toc_float: true
+    number_sections: yes
+    theme: bootstrap
+    df_print: paged
+    code_folding: hide
+    highlight: pygments
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Load Packages
+```{r echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+if (!require("knitr")) {install.packages("knitr"); require("knitr")}
+if (!require("dplyr")) {install.packages("dplyr"); require("dplyr")}
+if (!require("stringr")) {install.packages("stringr"); require("stringr")}
+if(!require("SeuratData")){install.packages("SeuratData"); require("SeurateData")}
+if (!require("Seurat")) {install.packages("Seurat"); require("Seurat")}
+if (!require("sctransform")) {install.packages("sctransform"); require("sctransform")}
+if (!require("patchwork")) {install.packages("patchwork"); require("patchwork")}
+if (!require("ggplot2")) {install.packages("ggplot2"); require("ggplot2")}
+if (!require("tidyverse")) {install.packages("tidyverse"); require("tidyverse")}
+if (!require("RColorBrewer")) {install.packages("RColorBrewer"); require("RColorBrewer")}
+if (!require("car")) {install.packages("car"); require("car")}
+if (!require("openxlsx")) {install.packages("openxlsx"); require("openxlsx")}
+if (!require("readxl")) {install.packages("readxl"); require("readxl")}
+if (!require("ggrepel")) {install.packages("ggrepel"); require("ggrepel")}
+if (!require("gghighlight")) {install.packages("gghighlight"); require("gghighlight")}
+if (!require("ggpmisc")) {install.packages("ggpmisc"); require("ggpmisc")}
+if (!require("data.table")) {install.packages("data.table"); require("data.table")}
+if (!require("here")) {install.packages("here"); require("here")}
+if (!require("writexl")) {install.packages("writexl"); require("writexl")}
+if (!require("ggupset")) {install.packages("ggupset"); require("ggupset")}
+if (!require("tidyverse")) {install.packages("tidyverse"); require("tidyverse")}
+if (!require("RColorBrewer")) {install.packages("RColorBrewer"); require("RColorBrewer")}
+if (!require("org.Mm.eg.db")) {BiocManager::install('org.Mm.eg.db'); require("org.Mm.eg.db")}
+if (!require("tibble")) {install.packages("tibble"); require("tibble")} # rownames_to_column
+if(!require("ggforce")){install.packages("ggforce"); require("ggforce")}
+if(!require("graphlayouts")){install.packages("graphlayouts"); require("graphlayouts")}
+if (!require("clusterProfiler")) {install.packages("clusterProfiler"); require("clusterProfiler")} # bitr
+if(!require("NatParksPalettes")){(install.packages("NatParksPalettes")); require("NatParksPalettes")}
+if (!require("SeuratWrappers")) {install.packages("SeuratWrappers"); require("SeuratWrappers")}
+if (!require("Matrix")) {install.packages("Matrix"); require("Matrix")}
+if (!require("Signac")) {install.packages("Signac"); require("Signac")}
+if (!require("SeuratData")) {install.packages("SeuratData"); require("SeuratData")}
+if (!require("monocle3")) {install.packages("monocle3"); require("monocle3")}
+```
+
+# Loading Oligodendrocyte cells into Supplementary
+```{r echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+#Upload the subclustered oligolineage seurat object
+ON.OL <- readRDS(here("Outputs", "Subclusters", "ON_Oligolineage.rds"))
+
+
+set.seed(224)
+
+#Create Highlight cell cell clusters using WhichCells
+ON.OL <- SetIdent(ON.OL, value = ON.OL@meta.data$combined.genotype)
+PLP_highlight <- WhichCells(ON.OL, idents = c("PLP Cre+"))
+Sox10_highlight <- WhichCells(ON.OL, idents = c( "Sox10 Cre+"))
+```
+
+# Figure Outputs
+```{r echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+#Supplementary Fig3.a
+#Setup gene list
+DefaultAssay(ON.OL)<-"RNA"
+KOOL.genes = c("Sox10", "Sox6", "Zeb1", "Pdgfra", "Cspg4", "Ptprz1", "Zfp536", "St18", "Trf", "Anln", "Mobp", "Plp1", "Syt4", "Prex2", "Rasgef1c", "Col5a3", "Matn2")
+
+#Output
+ON.OL <- SetIdent(ON.OL, value = ON.OL@meta.data$named.clusters)
+DotPlot_KOOLs <- DotPlot(ON.OL, idents=c("OPCs","KOOLs", "MOLs"), features = KOOL.genes, cols = c("cadetblue1", "darkred"), scale = FALSE, scale.by = "radius", dot.scale = 40, col.min = 0) + coord_flip()
+print(DotPlot_KOOLs)
+
+#Supplementary Fig3.b
+#Calculate DEGs
+ON.OL <- SetIdent(ON.OL, value = ON.OL@meta.data$combined.genotype)
+ON.OL$genotype.clusters <- paste(ON.OL$combined.genotype, ON.OL$named.clusters, sep = "_")
+ON.OL <- SetIdent(ON.OL, value = ON.OL@meta.data$genotype.clusters)
+KOOL_DEGs_complete <- FindMarkers(ON.OL, ident.1 = "Sox10 Cre+_KOOLs", ident.2 = "PLP Cre+_KOOLs", test.use = "wilcox", verbose = FALSE, logfc.threshold = 0.01)
+head(KOOL_DEGs_complete, n = 35)
+
+#order DEGs
+KOOL_DEGs_complete = KOOL_DEGs_complete[order(KOOL_DEGs_complete[,"avg_log2FC"], decreasing = TRUE),]
+
+#Add gene name 
+KOOL_DEGs_complete <- KOOL_DEGs_complete %>%
+  rownames_to_column(var="gene")%>%
+  filter(KOOL_DEGs_complete$pct.1 > 0.25)
+
+# add a column of NAs
+KOOL_DEGs_complete$diffexpressed <- "NO" # This creates a new column in the dataframe called “diffexpressed”
+# if log2Foldchange > 0.5 and pvalue < 0.05, set as "UP" 
+KOOL_DEGs_complete$diffexpressed[KOOL_DEGs_complete$avg_log2FC > 0.5 & KOOL_DEGs_complete$p_val_adj < 0.05 & KOOL_DEGs_complete$pct.1 > 0.25] <- "UP" #This puts string “UP” in column “diffexpresssed” if it’s avg_log2FC is above 0.5 and significant. 
+# if log2Foldchange < -0.6 and pvalue < 0.05, set as "DOWN"
+KOOL_DEGs_complete$diffexpressed[KOOL_DEGs_complete$avg_log2FC < -0.5 & KOOL_DEGs_complete$p_val_adj < 0.05 & KOOL_DEGs_complete$pct.1 > 0.25] <- "DOWN" #This puts string “DOWN” in column “diffexpresssed” if it’s avg_log2FC is below 0.50 and significant. 
+ 
+## Column diffexpressed will now have UP for avg_log2FC > 0.5, “DOWN” for avg_log2FC < -.05 and “NA” for those between -0.05 and 0.05.
+ 
+head(KOOL_DEGs_complete, 20) #Sanity check that the column diffexpressed has those updated values. 
+ 
+KOOL_DEGs_complete$delabel <- NA
+KOOL_DEGs_complete$delabel[KOOL_DEGs_complete$diffexpressed != "NO"] <- KOOL_DEGs_complete$gene[KOOL_DEGs_complete$diffexpressed != "NO"]
+ 
+plot1 <- ggplot(data=KOOL_DEGs_complete, aes(x=avg_log2FC, y=-log10(p_val_adj), col=diffexpressed, label=delabel)) + 
+              geom_point() + 
+              theme_minimal() +
+              geom_vline(xintercept=c(-0.5, 0.5), col="red") +
+              geom_hline(yintercept=-log10(0.05), col="red") +
+              scale_color_manual(values=c("#0C62AF", "black", "#CB7122")) +
+              ylim(0,100) +
+              xlim(-0.7, 0.7) +
+              geom_text_repel() +
+              theme(text = element_text(size = 20)) +       
+              theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
+print(plot1)
+
+#Supplementary Fig3.c
+#Install and Run Bioconductor
+if (!requireNamespace("BiocManager", quietly = TRUE))
+install.packages("BiocManager")
+BiocManager::install(version = "3.18")
+
+#Install BioConductor dependencies
+BiocManager::install(c('BiocGenerics', 'DelayedArray', 'DelayedMatrixStats',
+                       'limma', 'lme4', 'S4Vectors', 'SingleCellExperiment',
+                       'SummarizedExperiment', 'batchelor', 'HDF5Array',
+                       'terra', 'ggrastr'))
+
+#Install Monocle 3
+install.packages("devtools")
+devtools::install_github('cole-trapnell-lab/monocle3')
+
+
+# convert to cell_data_set object (cds.OL)
+cds.OL.v2 <- as.cell_data_set(ON.OL)
+cds.OL.v2 <- cluster_cells(cds = cds.OL.v2, reduction_method = "UMAP")
+
+# Determine proper resolution
+cds.OL.v2_res_adj <- cluster_cells(cds = cds.OL.v2, resolution = 0.0003)
+plot_cells(cds.OL.v2_res_adj)
+cds.OL.v2 <- cds.OL.v2_res_adj
+
+# find all possible partitions
+all_partitions <- unique(cds.OL.v2@clusters$UMAP$partitions)
+all_partitions <- all_partitions[all_partitions != "1"]
+
+# set all partitions to 1
+cds.OL.v2@clusters$UMAP$partitions[cds.OL.v2@clusters$UMAP$partitions %in% all_partitions] <- "1"
+
+# set all cells to one partition, otherwise it won't show the trajectory across partitions. Set use_partition to FALSE as below.
+cds.OL.v2 <- learn_graph(cds.OL.v2, use_partition = F)
+
+# Change the original embryo.time.bin in the tutorial to the cluster column name and the time_bin= will be the cluster name for the root population. https://github.com/cole-trapnell-lab/monocle3/issues/328
+
+# Run this to determine the `time_bin` for the seurat_cluster of interest
+DimPlot(ON.OL, reduction = "umap", group.by = "seurat_clusters", label = T)
+
+# a helper function to identify the root principal points:
+get_earliest_principal_node <- function(cds.OL.v2, time_bin= "19"){
+  cell_ids <- which(colData(cds.OL.v2)[, "seurat_clusters"] == time_bin)
+  closest_vertex <-
+  cds.OL.v2@principal_graph_aux[["UMAP"]]$pr_graph_cell_proj_closest_vertex
+  closest_vertex <- as.matrix(closest_vertex[colnames(cds.OL.v2), ])
+  root_pr_nodes <-
+  igraph::V(principal_graph(cds.OL.v2)[["UMAP"]])$name[as.numeric(names
+  (which.max(table(closest_vertex[cell_ids,]))))]
+  
+  root_pr_nodes
+}
+
+cds.OL.v2 <- order_cells(cds.OL.v2, root_pr_nodes=get_earliest_principal_node(cds.OL.v2))
+
+#Passing the programatically selected root node to order_cells() via the root_pr_nodeargument yields:
+
+plot_cells(cds = cds.OL.v2,
+           color_cells_by = "pseudotime",
+           show_trajectory_graph = TRUE,
+           trajectory_graph_color = "black",
+           trajectory_graph_segment_size = 1.5,
+           label_groups_by_cluster=FALSE,
+           label_cell_groups=FALSE,
+           label_leaves=FALSE,
+           label_branch_points=FALSE,
+           graph_label_size=3,
+           cell_size = 0.5) + scale_color_viridis_c()
+
+#Supplementary Fig3.d
+#Set a color gradient for UMAPs
+colfunc <- colorRampPalette(c("grey90", "red4"))
+colfunc(20)
+
+##Zeb1
+Featureplot_Zeb1_Gene <- FeaturePlot(ON.OL.f, features = "Zeb1", order = TRUE, cols = colfunc(10), pt.size = 5) + NoAxes() + NoLegend() + ggtitle("Zeb1" + theme(axis.title = element_blank()))
+Featureplot_Zeb1_Gene <- Featureplot_Zeb1_Gene + xlab("UMAP 1") +ylab("UMAP 2")
+ggdraw() + draw_plot(Featureplot_Zeb1_Gene, x = 0, y = 0, width = 1.0, height = 1.0)
+
+##Zfp536
+Featureplot_Zfp536_Gene <- FeaturePlot(ON.OL.f, features = "Zfp536", order = TRUE, cols = colfunc(10), pt.size = 5) + NoAxes() + NoLegend() + ggtitle("Zfp536" + theme(axis.title = element_blank()))
+Featureplot_Zfp536_Gene <- Featureplot_Zfp536_Gene + xlab("UMAP 1") +ylab("UMAP 2")
+ggdraw() + draw_plot(Featureplot_Zfp536_Gene, x = 0, y = 0, width = 1.0, height = 1.0)
+
+##Sox6
+Featureplot_Sox6_Gene <- FeaturePlot(ON.OL.f, features = "Sox6", order = TRUE, cols = colfunc(10), pt.size = 5) + NoAxes() + NoLegend() + ggtitle("Sox6" + theme(axis.title = element_blank()))
+Featureplot_Sox6_Gene <- Featureplot_Sox6_Gene + xlab("UMAP 1") +ylab("UMAP 2")
+ggdraw() + draw_plot(Featureplot_Sox6_Gene, x = 0, y = 0, width = 1.0, height = 1.0)
+
+##St18
+Featureplot_St18_Gene <- FeaturePlot(ON.OL.f, features = "St18", order = TRUE, cols = colfunc(10), pt.size = 5) + NoAxes() + NoLegend() + ggtitle("St18" + theme(axis.title = element_blank()))
+Featureplot_St18_Gene <- Featureplot_St18_Gene + xlab("UMAP 1") +ylab("UMAP 2")
+ggdraw() + draw_plot(Featureplot_St18_Gene, x = 0, y = 0, width = 1.0, height = 1.0)
+
+##Rasgef1c
+Featureplot_Rasgef1c_Gene <- FeaturePlot(ON.OL.f, features = "Rasgef1c", order = TRUE, cols = colfunc(10), pt.size = 5) + NoAxes() + NoLegend() + ggtitle("Rasgef1c" + theme(axis.title = element_blank()))
+Featureplot_Rasgef1c_Gene <- Featureplot_Rasgef1c_Gene + xlab("UMAP 1") +ylab("UMAP 2")
+ggdraw() + draw_plot(Featureplot_Rasgef1c_Gene, x = 0, y = 0, width = 1.0, height = 1.0)
+
+##Cdkn1a
+Featureplot_Cdkn1a_Gene <- FeaturePlot(ON.OL.f, features = "Cdkn1a", order = TRUE, cols = colfunc(10), pt.size = 5) + NoAxes() + NoLegend() + ggtitle("Cdkn1a Gene" + theme(axis.title = element_blank()))
+Featureplot_Cdkn1a_Gene <- Featureplot_Cdkn1a_Gene + xlab("UMAP 1") +ylab("UMAP 2")
+ggdraw() + draw_plot(Featureplot_Cdkn1a_Gene, x = 0, y = 0, width = 1.0, height = 1.0)
+
+##Prex2
+Featureplot_Prex2_Gene <- FeaturePlot(ON.OL.f, features = "Prex2", order = TRUE, cols = colfunc(10), pt.size = 5) + NoAxes() + NoLegend() + ggtitle("Prex2" + theme(axis.title = element_blank()))
+Featureplot_Prex2_Gene <- Featureplot_Prex2_Gene + xlab("UMAP 1") +ylab("UMAP 2")
+ggdraw() + draw_plot(Featureplot_Prex2_Gene, x = 0, y = 0, width = 1.0, height = 1.0)
+
+##Klk8
+Featureplot_Klk8_Gene <- FeaturePlot(ON.OL.f, features = "Klk8", order = TRUE, cols = colfunc(10), pt.size = 5) + NoAxes() + NoLegend() + ggtitle("Klk8 Gene" + theme(axis.title = element_blank()))
+Featureplot_Klk8_Gene <- Featureplot_Klk8_Gene + xlab("UMAP 1") +ylab("UMAP 2")
+ggdraw() + draw_plot(Featureplot_Klk8_Gene, x = 0, y = 0, width = 1.0, height = 1.0)
+
+#Supplementary Fig3.e
+##Syt4
+Featureplot_Syt4_Gene <- FeaturePlot(ON.OL, features = "Syt4", order = TRUE, cols = colfunc(20), pt.size = 5) + NoAxes() + NoLegend() + ggtitle("Syt4" + theme(axis.title = element_blank()))
+Featureplot_Syt4_Gene <- Featureplot_Syt4_Gene + xlab("UMAP 1") +ylab("UMAP 2")
+ggdraw() + draw_plot(Featureplot_Syt4_Gene, x = 0, y = 0, width = 1.0, height = 1.0)
+```
+# Session Info
+```{r echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+sessionInfo()
+```
+

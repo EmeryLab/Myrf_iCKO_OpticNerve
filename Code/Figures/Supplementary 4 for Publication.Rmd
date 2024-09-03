@@ -1,0 +1,149 @@
+---
+title: "Supplementary Figure 4"
+author: "Greg Duncan, Katie Emberley, and Jonathan Nelson"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document: 
+    toc: yes
+    toc_depth: 3
+    toc_float: true
+    number_sections: yes
+    theme: bootstrap
+    df_print: paged
+    code_folding: hide
+    highlight: pygments
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load Packages
+```{r load new packages, echo=TRUE, error=FALSE, message=FALSE, warning=FALSE}
+if (!require("knitr")) {install.packages("knitr"); require("knitr")}
+if (!require("dplyr")) {install.packages("dplyr"); require("dplyr")}
+if (!require("stringr")) {install.packages("stringr"); require("stringr")}
+if(!require("SeuratData")){install.packages("SeuratData"); require("SeurateData")}
+if (!require("Seurat")) {install.packages("Seurat"); require("Seurat")}
+if (!require("sctransform")) {install.packages("sctransform"); require("sctransform")}
+if (!require("patchwork")) {install.packages("patchwork"); require("patchwork")}
+if (!require("ggplot2")) {install.packages("ggplot2"); require("ggplot2")}
+if (!require("tidyverse")) {install.packages("tidyverse"); require("tidyverse")}
+if (!require("RColorBrewer")) {install.packages("RColorBrewer"); require("RColorBrewer")}
+if (!require("car")) {install.packages("car"); require("car")}
+if (!require("openxlsx")) {install.packages("openxlsx"); require("openxlsx")}
+if (!require("readxl")) {install.packages("readxl"); require("readxl")}
+if (!require("ggrepel")) {install.packages("ggrepel"); require("ggrepel")}
+if (!require("gghighlight")) {install.packages("gghighlight"); require("gghighlight")}
+if (!require("ggpmisc")) {install.packages("ggpmisc"); require("ggpmisc")}
+if (!require("data.table")) {install.packages("data.table"); require("data.table")}
+if (!require("here")) {install.packages("here"); require("here")}
+if (!require("writexl")) {install.packages("writexl"); require("writexl")}
+if (!require("ggplot2")) {install.packages("ggplot2"); require("ggplot2")}
+if (!require("ggupset")) {install.packages("ggupset"); require("ggupset")}
+if (!require("tidyverse")) {install.packages("tidyverse"); require("tidyverse")}
+if (!require("RColorBrewer")) {install.packages("RColorBrewer"); require("RColorBrewer")}
+if (!require("org.Mm.eg.db")) {BiocManager::install('org.Mm.eg.db'); require("org.Mm.eg.db")}
+if (!require("tibble")) {install.packages("tibble"); require("tibble")} # rownames_to_column
+if(!require("ggforce")){install.packages("ggforce"); require("ggforce")}
+if(!require("graphlayouts")){install.packages("graphlayouts"); require("graphlayouts")}
+if (!require("ggrepel")) {install.packages("ggrepel"); require("ggrepel")}
+if (!require("gghighlight")) {install.packages("gghighlight"); require("gghighlight")}
+if (!require("ggpmisc")) {install.packages("ggpmisc"); require("ggpmisc")}
+if (!require("clusterProfiler")) {install.packages("clusterProfiler"); require("clusterProfiler")} # bitr
+if(!require("NatParksPalettes")){(install.packages("NatParksPalettes")); require("NatParksPalettes")}
+if (!require("SeuratWrappers")) {install.packages("SeuratWrappers"); require("SeuratWrappers")}
+if (!require("Matrix")) {install.packages("Matrix"); require("Matrix")}
+if (!require("Signac")) {install.packages("Signac"); require("Signac")}
+if (!require("SeuratData")) {install.packages("SeuratData"); require("SeuratData")}
+if (!require("monocle3")) {install.packages("monocle3"); require("monocle3")}
+if (!require("cowplot")) {install.packages("cowplot"); require("cowplot")}
+```
+
+```{r echo=TRUE, error=FALSE, message=FALSE, warning=FALSE, fig.align = 'center'}
+## This will need to be changed.
+
+ON.OL.f <- readRDS(here("Outputs", "Subclusters", "ON_Oligolineage.rds"))
+
+#Change colors to default
+genotype_colors <- c('Control' = "#808080",
+                    'PLP Cre+' = "#0167A2",
+                    'Sox10 Cre+' = "#CB7122")
+
+genotype_colors <- genotype_colors[order(as.integer(names(genotype_colors)))]
+scales::show_col(genotype_colors)
+
+#Set a color gradient for UMAPs
+colfunc <- colorRampPalette(c("grey90", "red4"))
+colfunc(20)
+
+#Ensure Default assay is RNA
+DefaultAssay(ON.OL.f) <- "RNA"
+```
+# Supplementary Figure 4 Output
+```{r echo=TRUE, error=FALSE, message=FALSE, warning=FALSE, fig.height = 3, fig.width = 4, fig.align = 'center'}
+
+#Highlight Cells from genotypes
+ON.OL.OPC <- SetIdent(ON.OL.OPC, value = ON.OL.OPC@meta.data$combined.genotype)
+PLP_highlight_OPC <- WhichCells(ON.OL.OPC, idents = c("PLP Cre+"))
+Sox10_highlight_OPC <- WhichCells(ON.OL.OPC, idents = c( "Sox10 Cre+"))
+
+#Subset OPCs
+ON.OL.f <- SetIdent(ON.OL.f, value = "named.clusters")
+ON.OL.OPC <-subset(ON.OL.f, idents = c("OPCs"))
+
+#Supplementary Fig4.d
+#OPC by 
+Genotype_OPC_Dimplot <-DimPlot(ON.OL.OPC, group.by="combined.genotype", sizes.highlight = 4,  cols= genotype_colors, pt.size = 4)+ NoLegend() + xlim(0,5)+ ylim(-10,-5)+ ggtitle("Genotype_OPCs" + theme(axis.title = element_blank()))
+Genotype_OPC_Dimplot <- Genotype_OPC_Dimplot + xlab("UMAP 1") +ylab("UMAP 2")
+print(Genotype_OPC_Dimplot)
+
+#PLP OPC Subcluster Highlight
+PLP_OPC_Highlight <-DimPlot(ON.OL.OPC, group.by="combined.genotype", cells.highlight=list(PLP_highlight_OPC), cols.highlight = "#0167A2", shuffle = T, sizes.highlight = 4,  cols= "grey80", pt.size = 4)+ NoLegend() + xlim(0,5)+ ylim(-10,-5)+ ggtitle("PLP_OPCs" + theme(axis.title = element_blank()))
+PLP_OPC_Highlight  <- PLP_OPC_Highlight + xlab("UMAP 1") +ylab("UMAP 2")
+print(PLP_OPC_Highlight)
+
+#Sox10 OPC Subcluster Highlight
+Sox10_OPC_Highlight <-DimPlot(ON.OL.OPC, group.by="combined.genotype", cells.highlight=list(Sox10_highlight_OPC), cols.highlight = "#CB7122", shuffle = T, sizes.highlight = 4,  cols= "grey80", pt.size = 4)+ NoLegend() + xlim(0,5)+ ylim(-10,-5)+ ggtitle("PLP_OPCs" + theme(axis.title = element_blank()))
+Sox10_OPC_Highlight <- Sox10_OPC_Highlight + xlab("UMAP 1") +ylab("UMAP 2")
+print(Sox10_OPC_Highlight)
+
+#Supplementary Fig4.e
+#Mki67
+Featureplot_Mki67_Control <- FeaturePlot(control.subset.OPC, features = "Mki67", cols = colfunc(10), order = TRUE, pt.size = 8) + NoAxes() + NoLegend() + xlim(0,5)+ ylim(-10,-5)+ ggtitle("Mki67  Gene" + theme(axis.title = element_blank()))
+Featureplot_Mki67_Control <- Featureplot_Mki67_Control + xlab("UMAP 1") +ylab("UMAP 2")
+ggdraw() + draw_plot(Featureplot_Mki67_Control, x = 0, y = 0, width = 1.0, height = 1.0)
+
+Featureplot_Mki67_PLP <- FeaturePlot(PLP.subset.OPC, features = "Mki67", cols = colfunc(10), order = TRUE, pt.size = 8) + NoAxes() + NoLegend() + xlim(0,5)+ ylim(-10,-5)+ ggtitle("Mki67  Gene" + theme(axis.title = element_blank()))
+Featureplot_Mki67_PLP <- Featureplot_Mki67_PLP + xlab("UMAP 1") +ylab("UMAP 2")
+ggdraw() + draw_plot(Featureplot_Mki67_PLP, x = 0, y = 0, width = 1.0, height = 1.0)
+
+Featureplot_Mki67_Sox10 <- FeaturePlot(Sox10.subset.OPC, features = "Mki67", cols = colfunc(10), order = TRUE, pt.size = 8) + NoAxes() + NoLegend() + xlim(0,5)+ ylim(-10,-5)+ ggtitle("Mki67  Gene" + theme(axis.title = element_blank()))
+Featureplot_Mki67_Sox10 <- Featureplot_Mki67_Sox10 + xlab("UMAP 1") +ylab("UMAP 2")
+ggdraw() + draw_plot(Featureplot_Mki67_Sox10, x = 0, y = 0, width = 1.0, height = 1.0)
+
+#Top2a
+
+Featureplot_Top2a_Control <- FeaturePlot(control.subset.OPC, features = "Top2a", cols = colfunc(10), order = TRUE, pt.size = 8) + NoAxes() + NoLegend() + xlim(0,5)+ ylim(-10,-5)+ ggtitle("Top2a  Gene" + theme(axis.title = element_blank()))
+Featureplot_Top2a_Control <- Featureplot_Top2a_Control + xlab("UMAP 1") +ylab("UMAP 2")
+ggdraw() + draw_plot(Featureplot_Top2a_Control, x = 0, y = 0, width = 1.0, height = 1.0)
+
+Featureplot_Top2a_PLP <- FeaturePlot(PLP.subset.OPC, features = "Top2a", cols = colfunc(10), order = TRUE, pt.size = 8) + NoAxes() + NoLegend() + xlim(0,5)+ ylim(-10,-5)+ ggtitle("Top2a  Gene" + theme(axis.title = element_blank()))
+Featureplot_Top2a_PLP <- Featureplot_Top2a_PLP + xlab("UMAP 1") +ylab("UMAP 2")
+ggdraw() + draw_plot(Featureplot_Top2a_PLP, x = 0, y = 0, width = 1.0, height = 1.0)
+
+Featureplot_Top2a_Sox10 <- FeaturePlot(Sox10.subset.OPC, features = "Top2a", cols = colfunc(10), order = TRUE, pt.size = 8) + NoAxes() + NoLegend() + xlim(0,5)+ ylim(-10,-5)+ ggtitle("Top2a  Gene" + theme(axis.title = element_blank()))
+Featureplot_Top2a_Sox10 <- Featureplot_Top2a_Sox10 + xlab("UMAP 1") +ylab("UMAP 2")
+ggdraw() + draw_plot(Featureplot_Top2a_Sox10, x = 0, y = 0, width = 1.0, height = 1.0)
+
+#Supplementary Fig4.f
+#Comparison of gene expression
+OPC.markers <- VlnPlot(ON.OL.OPC, features = c("Pdgfra", "Cspg4", "Ptprz1", "Pcdh15", "Dscam", "Tnr", "Megf11", "Fam155a", "Adarb2"), fill.by = "ident", cols = genotype_colors, group.by = "combined.genotype", stack = TRUE, flip = TRUE, pt.size = 0) + RotatedAxis()  + NoLegend() + ggtitle("OPC markers VlnPlot"+ theme(axis.title = element_blank(),  axis.title.x = element_blank(), axis.title.y = element_blank()))
+ggdraw() + draw_plot(OPC.markers)
+```
+```
+
+#Session Info
+```{r, echo=TRUE, warning=FALSE, error=FALSE, message=FALSE}
+sessionInfo()
+```
+

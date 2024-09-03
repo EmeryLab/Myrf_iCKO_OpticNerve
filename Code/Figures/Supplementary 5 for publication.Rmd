@@ -1,0 +1,139 @@
+---
+title: "Supplementary Figure 5"
+author: "Greg Duncan, Katie Emberley and Jonathan Nelson"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document: 
+    toc: yes
+    toc_depth: 3
+    toc_float: true
+    number_sections: yes
+    theme: bootstrap
+    df_print: paged
+    code_folding: hide
+    highlight: pygments
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Load Packages
+```{r echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+if (!require("knitr")) {install.packages("knitr"); require("knitr")}
+if (!require("dplyr")) {install.packages("dplyr"); require("dplyr")}
+if (!require("stringr")) {install.packages("stringr"); require("stringr")}
+if(!require("SeuratData")){install.packages("SeuratData"); require("SeurateData")}
+if (!require("Seurat")) {install.packages("Seurat"); require("Seurat")}
+if (!require("sctransform")) {install.packages("sctransform"); require("sctransform")}
+if (!require("patchwork")) {install.packages("patchwork"); require("patchwork")}
+if (!require("ggplot2")) {install.packages("ggplot2"); require("ggplot2")}
+if (!require("tidyverse")) {install.packages("tidyverse"); require("tidyverse")}
+if (!require("RColorBrewer")) {install.packages("RColorBrewer"); require("RColorBrewer")}
+if (!require("car")) {install.packages("car"); require("car")}
+if (!require("openxlsx")) {install.packages("openxlsx"); require("openxlsx")}
+if (!require("readxl")) {install.packages("readxl"); require("readxl")}
+if (!require("ggrepel")) {install.packages("ggrepel"); require("ggrepel")}
+if (!require("gghighlight")) {install.packages("gghighlight"); require("gghighlight")}
+if (!require("ggpmisc")) {install.packages("ggpmisc"); require("ggpmisc")}
+if (!require("data.table")) {install.packages("data.table"); require("data.table")}
+if (!require("here")) {install.packages("here"); require("here")}
+if (!require("writexl")) {install.packages("writexl"); require("writexl")}
+if (!require("ggupset")) {install.packages("ggupset"); require("ggupset")}
+if (!require("tidyverse")) {install.packages("tidyverse"); require("tidyverse")}
+if (!require("RColorBrewer")) {install.packages("RColorBrewer"); require("RColorBrewer")}
+if (!require("org.Mm.eg.db")) {BiocManager::install('org.Mm.eg.db'); require("org.Mm.eg.db")}
+if (!require("tibble")) {install.packages("tibble"); require("tibble")} # rownames_to_column
+if(!require("ggforce")){install.packages("ggforce"); require("ggforce")}
+if(!require("graphlayouts")){install.packages("graphlayouts"); require("graphlayouts")}
+if (!require("clusterProfiler")) {install.packages("clusterProfiler"); require("clusterProfiler")} # bitr
+if(!require("NatParksPalettes")){(install.packages("NatParksPalettes")); require("NatParksPalettes")}
+if (!require("SeuratWrappers")) {install.packages("SeuratWrappers"); require("SeuratWrappers")}
+if (!require("Matrix")) {install.packages("Matrix"); require("Matrix")}
+if (!require("Signac")) {install.packages("Signac"); require("Signac")}
+if (!require("SeuratData")) {install.packages("SeuratData"); require("SeuratData")}
+if (!require("monocle3")) {install.packages("monocle3"); require("monocle3")}
+```
+
+# Loading Astrocytes 
+```{r echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+
+
+ON.Astros.f <- readRDS(here("Outputs", "Subclusters", "ON_Astrocytes.rds"))
+
+#Change colors to default
+genotype_colors <- c('Control' = "#808080",
+                    'PLP Cre+' = "#0167A2",
+                    'Sox10 Cre+' = "#CB7122")
+
+genotype_colors <- genotype_colors[order(as.integer(names(genotype_colors)))]
+
+scales::show_col(genotype_colors)
+
+#Set a color gradient for UMAPs
+colfunc <- colorRampPalette(c("grey90", "red4"))
+colfunc(20)
+```
+
+# UMAP By Genotype
+```{r echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+#Create Highlights
+ON.Astros.f <- SetIdent(ON.Astros.f, value = ON.Astros.f@meta.data$combined.genotype)
+PLP_highlight <- WhichCells(ON.Astros.f, idents = c("PLP Cre+"))
+Sox10_highlight <- WhichCells(ON.Astros.f, idents = c( "Sox10 Cre+"))
+Control_highlight <- WhichCells(ON.Astros.f, idents = c( "Control"))
+set.seed(224)
+
+#Supplementary Fig5.c
+#Total UMAP
+Dimplot_All_Astros <- DimPlot(ON.Astros.f, reduction = "umap", group.by = "combined.genotype", shuffle = TRUE, cols = genotype_colors, pt.size = 4) + NoLegend() + NoAxes() + ggtitle("Dimplot all Astros Lineage" + theme(axis.title = element_blank()))
+Dimplot_All_Astros <- Dimplot_All_Astros + xlab("UMAP 1") +ylab("UMAP 2")
+ggdraw() + draw_plot(Dimplot_All_Astros, x = 0, y = 0, width = 1.0, height = 1.0)
+
+#Dimplot Highlight Sox10
+Dimplot_Highlight_Sox10 <-DimPlot(ON.Astros.f, group.by="combined.genotype", cells.highlight= Sox10_highlight, cols.highlight = "#CB7122", sizes.highlight = 4,  cols= "grey90", pt.size = 4)+ NoLegend() + ggtitle("Sox10 Highlight" + theme(axis.title = element_blank()))
+Dimplot_Highlight_Sox10 <- Dimplot_Highlight_Sox10 + xlab("UMAP 1") +ylab("UMAP 2")
+print(Dimplot_Highlight_Sox10)
+
+#Dimplot Highlight PLP
+Dimplot_Highlight_PLP <-DimPlot(ON.Astros.f, group.by="combined.genotype", cells.highlight= PLP_highlight, cols.highlight = "#0167A2", sizes.highlight = 4, cols= "grey90", pt.size = 4)+ NoLegend() + ggtitle("PLP Highlight" + theme(axis.title = element_blank()))
+Dimplot_Highlight_PLP <- Dimplot_Highlight_PLP + xlab("UMAP 1") +ylab("UMAP 2")
+print(Dimplot_Highlight_PLP)
+
+#Dimplot Highlight Control
+Dimplot_Highlight_Control <-DimPlot(ON.Astros.f, group.by="combined.genotype", cells.highlight= Control_highlight, cols.highlight = "808080", sizes.highlight = 4, cols= "grey90", pt.size = 4)+ NoLegend() + ggtitle("Control Highlight" + theme(axis.title = element_blank()))
+Dimplot_Highlight_Control <- Dimplot_Highlight_Control + xlab("UMAP 1") +ylab("UMAP 2")
+print(Dimplot_Highlight_Control)
+
+#Supplementary Fig5.d
+#UMAPs of individual genes
+#GFAP
+Featureplot_Gfap_Gene <- FeaturePlot(ON.Astros.f, features = "Gfap", order = TRUE, cols = colfunc(20), pt.size = 5) + NoAxes() + NoLegend() + ggtitle("Gfap Gene" + theme(axis.title = element_blank()))
+Featureplot_Gfap_Gene <- Featureplot_Gfap_Gene + xlab("UMAP 1") +ylab("UMAP 2")
+ggdraw() + draw_plot(Featureplot_Gfap_Gene, x = 0, y = 0, width = 1.0, height = 1.0)
+
+##Stat3
+Featureplot_Stat3_Gene <- FeaturePlot(ON.Astros.f, features = "Stat3", order = TRUE, cols = colfunc(20), pt.size = 5) + NoAxes() + NoLegend() + ggtitle("Stat3 Gene" + theme(axis.title = element_blank()))
+Featureplot_Stat3_Gene <- Featureplot_Stat3_Gene + xlab("UMAP 1") +ylab("UMAP 2")
+ggdraw() + draw_plot(Featureplot_Stat3_Gene, x = 0, y = 0, width = 1.0, height = 1.0)
+
+##Lcn2
+Featureplot_Lcn2_Gene <- FeaturePlot(ON.Astros.f, features = "Lcn2", order = TRUE, cols = colfunc(20), pt.size = 5) + NoAxes() + NoLegend() + ggtitle("Lcn2 Gene" + theme(axis.title = element_blank()))
+Featureplot_Lcn2_Gene <- Featureplot_Lcn2_Gene + xlab("UMAP 1") +ylab("UMAP 2")
+ggdraw() + draw_plot(Featureplot_Lcn2_Gene, x = 0, y = 0, width = 1.0, height = 1.0)
+
+#Supplementary Fig5.e
+#Setup gene list
+Astro.genes.for.paper = c("Lcn2", "Cp", "Slc39a14", "C4b", "Stat3", "Nfkbia", "Ptn", "Cd109", "S1pr3","Vim", "Gfap", "Aqp4", "Sox9")
+ 
+#Easiest thing would be to create a list of the genes
+Astros.markers <- VlnPlot(ON.Astros.f, features = Astro.genes.for.paper, fill.by = "ident", cols = genotype_colors, group.by = "combined.genotype", stack = TRUE, flip = TRUE, pt.size = 0) + RotatedAxis()  + NoLegend() + ggtitle("Astros.markers"+ theme(axis.title = element_blank(),  axis.title.x = element_blank(), axis.title.y = element_blank()))
+ggdraw() + draw_plot(Astros.markers)
+
+
+```
+#Session Info
+```{r, echo=TRUE, warning=FALSE, error=FALSE, message=FALSE}
+sessionInfo()
+```
+

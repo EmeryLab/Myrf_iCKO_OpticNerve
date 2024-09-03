@@ -1,0 +1,242 @@
+---
+title: "Figure 3"
+author: "Greg Duncan, Katie Emberley, Jonathan Nelson, and Jeremiah Reyes"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document: 
+    toc: yes
+    toc_depth: 3
+    toc_float: true
+    number_sections: yes
+    theme: bootstrap
+    df_print: paged
+    code_folding: hide
+    highlight: pygments
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load Packages
+
+```{r load new packages, echo=TRUE, error=FALSE, message=FALSE, warning=FALSE}
+if (!require("knitr")) {install.packages("knitr"); require("knitr")}
+if (!requireNamespace('BiocManager', quietly = TRUE)) {install.packages('BiocManager'); require("BiocManager")}
+if (!require("dplyr")) {install.packages("dplyr"); require("dplyr")}
+if (!require("stringr")) {install.packages("stringr"); require("stringr")}
+if (!require("SeuratObject")) {install.packages("SeuratObject"); require("SeuratObject")}
+if (!require("Seurat")) {install.packages("Seurat"); require("Seurat")}
+if (!require("sctransform")) {install.packages("sctransform"); require("sctransform")}
+if (!require("glmGamPoi")) {BiocManager::install('glmGamPoi'); require("glmGamPoi")}
+if (!require("patchwork")) {install.packages("patchwork"); require("patchwork")}
+if (!require("ggplot2")) {install.packages("ggplot2"); require("ggplot2")}
+if (!require("EnhancedVolcano")) {BiocManager::install('EnhancedVolcano'); require("EnhancedVolcano")}
+if (!require("DESeq2")) {BiocManager::install('DESeq2'); require("DESeq2")}
+if (!require("tidyverse")) {install.packages("tidyverse"); require("tidyverse")}
+if (!require("RColorBrewer")) {install.packages("RColorBrewer"); require("RColorBrewer")}
+if (!require("car")) {install.packages("car"); require("car")}
+if (!require("openxlsx")) {install.packages("openxlsx"); require("openxlsx")}
+if (!require("readxl")) {install.packages("readxl"); require("readxl")}
+if (!require("ggrepel")) {install.packages("ggrepel"); require("ggrepel")}
+if (!require("gghighlight")) {install.packages("gghighlight"); require("gghighlight")}
+if (!require("ggpmisc")) {install.packages("ggpmisc"); require("ggpmisc")}
+if (!require("data.table")) {install.packages("data.table"); require("data.table")}
+if (!require("here")) {install.packages("here"); require("here")}
+if (!require("NatParksPalettes")) {install.packages("NatParksPalettes"); require("NatParksPalettes")}
+if (!require("sc")) {install.packages("NatParksPalettes"); require("NatParksPalettes")}
+if (!require("cowplot")) {install.packages("cowplot"); require("cowplot")}
+if (!require("patchwork")) {install.packages("patchwork"); require("patchwork")} 
+if (!require("scCustomize")) {install.packages("scCustomize"); require("scCustomize")} 
+```
+
+# Set Seed
+
+This ensures the knit file reflects the console.
+
+```{r}
+set.seed(224)
+```
+
+# Color Change and Rename clusters
+
+```{r echo=TRUE, error=FALSE, message=FALSE, warning=FALSE, fig.align = 'center'}
+#Upload subcuster microglia seurat object
+Microglia_Subclustering <- readRDS(here("Outputs","Subclusters", "ON_Microglia.rds")) 
+
+DefaultAssay(Microglia_Subclustering) <- "RNA"
+
+#Change colors to default
+genotype_colors <- c('Control' = "#808080",
+                    'PLP Cre+' = "#0167A2",
+                    'Sox10 Cre+' = "#CB7122")
+
+genotype_colors <- genotype_colors[order(as.integer(names(genotype_colors)))]
+
+scales::show_col(genotype_colors)
+
+#Set a color gradient for UMAPs
+colfunc <- colorRampPalette(c("grey90", "red4"))
+colfunc(20)
+
+# Rename clusters and make new column
+
+Microglia_Subclustering@meta.data <- Microglia_Subclustering@meta.data %>% mutate(microglia.named = dplyr::case_when(
+  combined.clusters == "2" ~ "Homeostatic",
+  combined.clusters == "4" ~ "BAM",
+  combined.clusters == "0" ~ "DIM1",
+  combined.clusters == "1" ~ "DIM2",
+  combined.clusters == "3" ~ "DIM3"))
+
+# Change active ident to the new column with the names
+Microglia_Subclustering<- SetIdent(Microglia_Subclustering, value = Microglia_Subclustering@meta.data$combined.clusters)
+
+#Change the levels of the object so that Cre- is always on the right side of graphs and replicates are in appropriate order
+
+micro_levels <- c("Homeostatic", "BAM", "DIM1", "DIM2", "DIM3")
+Microglia_Subclustering@meta.data$microglia.named  <- factor((Microglia_Subclustering@meta.data$microglia.named), levels= micro_levels)
+
+# Change active ident to the new column with the names
+Microglia_Subclustering<- SetIdent(Microglia_Subclustering, value = Microglia_Subclustering@meta.data$microglia.named)
+```
+
+# Microglia
+```{r echo=TRUE, error=FALSE, message=FALSE, warning=FALSE, fig.align = 'center'}
+
+#Fig.3d
+DimPlot(Microglia_Subclustering, reduction = "umap", cols = natparks.pals("Torres", 5))
+
+#Fig3.e
+#Csf1r
+Featureplot_CSF1r <- FeaturePlot(Microglia_Subclustering, features = "Csf1r", cols = colfunc(20), pt.size = 4) + NoAxes() + NoLegend() + ggtitle("Csf1r Gene" + theme(axis.title = element_blank()))
+Featureplot_CSF1r <- Featureplot_CSF1r + xlab("UMAP 1") +ylab("UMAP 2")
+ggdraw() + draw_plot(Featureplot_CSF1r, x = 0, y = 0, width = 1.0, height = 1.0)
+
+#Siglech
+Featureplot_Siglech <- FeaturePlot(Microglia_Subclustering, features = "Siglech", cols = colfunc(20), pt.size = 4) + NoAxes() + NoLegend() + ggtitle("Siglech Gene" + theme(axis.title = element_blank()))
+Featureplot_Siglech <- Featureplot_Siglech + xlab("UMAP 1") +ylab("UMAP 2")
+ggdraw() + draw_plot(Featureplot_Siglech, x = 0, y = 0, width = 1.0, height = 1.0)
+
+#cd163
+Featureplot_cd163 <- FeaturePlot(Microglia_Subclustering, features = "Cd163", cols = colfunc(20), pt.size = 4) + NoAxes() + NoLegend() + ggtitle("CD163 Gene" + theme(axis.title = element_blank()))
+Featureplot_cd163 <- Featureplot_cd163 + xlab("UMAP 1") +ylab("UMAP 2")
+ggdraw() + draw_plot(Featureplot_cd163, x = 0, y = 0, width = 1.0, height = 1.0)
+
+#Ms4a7
+Featureplot_Ms4a7 <- FeaturePlot(Microglia_Subclustering, features = "Ms4a7", cols = colfunc(20), pt.size = 4) + NoAxes() + NoLegend() + ggtitle("Ms4a7 Gene" + theme(axis.title = element_blank()))
+Featureplot_Ms4a7 <- Featureplot_Ms4a7 + xlab("UMAP 1") +ylab("UMAP 2")
+ggdraw() + draw_plot(Featureplot_Ms4a7, x = 0, y = 0, width = 1.0, height = 1.0)
+
+#Igf1
+Featureplot_Igf1 <- FeaturePlot(Microglia_Subclustering, features = "Igf1", cols = colfunc(20), pt.size = 4) + NoAxes() + NoLegend() + ggtitle("Igf1  Gene" + theme(axis.title = element_blank()))
+Featureplot_Igf1 <- Featureplot_Igf1 + xlab("UMAP 1") +ylab("UMAP 2")
+ggdraw() + draw_plot(Featureplot_Igf1, x = 0, y = 0, width = 1.0, height = 1.0)
+
+#Atp8b4
+Featureplot_Atp8b4 <- FeaturePlot(Microglia_Subclustering, features = "Atp8b4", cols = colfunc(20), pt.size = 4) + NoAxes() + NoLegend() + ggtitle("Atp8b4  Gene" + theme(axis.title = element_blank()))
+Featureplot_Atp8b4 <- Featureplot_Atp8b4 + xlab("UMAP 1") +ylab("UMAP 2")
+ggdraw() + draw_plot(Featureplot_Atp8b4, x = 0, y = 0, width = 1.0, height = 1.0)
+
+#Fig3.f
+#Dotplot of key marker genes
+DotPlot(Microglia_Subclustering, features = c("Csf1r", "Cx3cr1", "Sall1", "Siglech", "Lyve1", "Cd163", "Ms4a7", "Trem2", "Atp6v0d2", "Igf1",  "Spp1", "Epas1", "Atp8b4"), cols = c("cadetblue1", "darkred"), scale.by = "radius", dot.scale = 35) + coord_flip() + RotatedAxis() + ggtitle("Cell markers VlnPlot"+ theme(axis.title = element_blank(),  axis.title.x = element_blank(), axis.title.y = element_blank()))
+
+#Fig3.g
+#Activation Markers
+Genotype_comparison <- VlnPlot(Microglia_Subclustering, features = c("Ms4a7", "Trem2", "Axl", "Cd84", "Lgals3", "Hif1a", "Lyst", "Fmn1", "Myo1e"), fill.by = "ident", cols = genotype_colors, group.by = "combined.genotype", stack = TRUE, flip = TRUE, pt.size = 0) + RotatedAxis()  + NoLegend() + ggtitle("Cell markers VlnPlot"+ theme(axis.title = element_blank(),  axis.title.x = element_blank(), axis.title.y = element_blank()))
+ggdraw() + draw_plot(Genotype_comparison, x = 0, y = 0, width = 1.0, height = 1.0)
+
+#Fig3.h
+#Overall Dimplot with respective titles and legend labels
+Dimplot_All_Micro <- DimPlot(Microglia_Subclustering, reduction = "umap", group.by = "combined.genotype", shuffle = TRUE, cols = genotype_colors, pt.size = 1) + NoLegend() + ggtitle("Overall UMAP of Microglia" + theme(axis.title = element_blank()))
+Dimplot_All_Micro <- Dimplot_All_Micro + xlab("UMAP 1") +ylab("UMAP 2")
+print(Dimplot_All_Micro)
+
+#Highlight Cells from genotypes
+Microglia_Subclustering <- SetIdent(Microglia_Subclustering, value = Microglia_Subclustering@meta.data$combined.genotype)
+PLP_highlight <- WhichCells(Microglia_Subclustering, idents = c("PLP Cre+"))
+Sox10_highlight <- WhichCells(Microglia_Subclustering, idents = c( "Sox10 Cre+"))
+Control_highlight <- WhichCells(Microglia_Subclustering, idents = c( "Control"))
+
+#Dimplot Highlight Sox10
+Dimplot_Highlight_Sox10 <-DimPlot(Microglia_Subclustering, group.by="combined.genotype", cells.highlight= Sox10_highlight, cols.highlight = "#CB7122", sizes.highlight = 4,  cols= "grey80", pt.size = 4)+ NoLegend() + ggtitle("Sox10 Highlight" + theme(axis.title = element_blank()))
+Dimplot_Highlight_Sox10 <- Dimplot_Highlight_Sox10 + xlab("UMAP 1") +ylab("UMAP 2")
+print(Dimplot_Highlight_Sox10)
+
+#Dimplot Highlight PLP
+Dimplot_Highlight_PLP <-DimPlot(Microglia_Subclustering, group.by="combined.genotype", cells.highlight= PLP_highlight, cols.highlight = "#0167A2", sizes.highlight = 4, cols= "grey80", pt.size = 4)+ NoLegend() + ggtitle("PLP Highlight" + theme(axis.title = element_blank()))
+Dimplot_Highlight_PLP <- Dimplot_Highlight_PLP + xlab("UMAP 1") +ylab("UMAP 2")
+print(Dimplot_Highlight_PLP)
+
+#Dimplot Highlight Control
+Dimplot_Highlight_Control <-DimPlot(Microglia_Subclustering, group.by="combined.genotype", cells.highlight= Control_highlight, cols.highlight = "#808080", sizes.highlight = 4, cols= "grey80", pt.size =4)+ NoLegend() + ggtitle("PLP Highlight" + theme(axis.title = element_blank()))
+Dimplot_Highlight_Control <- Dimplot_Highlight_Control + xlab("UMAP 1") +ylab("UMAP 2")
+print(Dimplot_Highlight_Control)
+
+#Fig3.j
+#Calculate DEGs
+Microglia_Subclustering <- SetIdent(Microglia_Subclustering, value = Microglia_Subclustering@meta.data$microglia.named)
+##Probably don't want to do this
+DIM3_DEGs_complete <- FindMarkers(Microglia_Subclustering, ident.1 = "DIM3", logfc.threshold = 0.1)
+
+#order DEGs
+DIM3_DEGs_complete = DIM3_DEGs_complete[order(DIM3_DEGs_complete[,"avg_log2FC"], decreasing = TRUE),]
+
+# add a column of NAs
+DIM3_DEGs_complete$diffexpressed <- "NO" # This creates a new column in the dataframe called “diffexpressed”
+# if log2Foldchange > 0.5 and pvalue < 0.05, set as "UP" 
+DIM3_DEGs_complete$diffexpressed[DIM3_DEGs_complete$avg_log2FC > 0.5 & DIM3_DEGs_complete$p_val_adj < 0.05] <- "UP" #This puts string “UP” in column “diffexpresssed” if it’s avg_log2FC is above 0.5 and significant. 
+# if log2Foldchange < -0.6 and pvalue < 0.05, set as "DOWN"
+DIM3_DEGs_complete$diffexpressed[DIM3_DEGs_complete$avg_log2FC < -0.5 & DIM3_DEGs_complete$p_val_adj < 0.05] <- "DOWN" #This puts string “DOWN” in column “diffexpresssed” if it’s avg_log2FC is below 0.50 and significant. 
+ 
+## Column diffexpressed will now have UP for avg_log2FC > 0.5, “DOWN” for avg_log2FC < -.05 and “NA” for those between -0.05 and 0.05.
+ 
+head(DIM3_DEGs_complete, 20) #Sanity check that the column diffexpressed has those updated values. 
+ 
+DIM3_DEGs_complete$delabel <- NA
+DIM3_DEGs_complete$delabel[DIM3_DEGs_complete$diffexpressed != "NO"] <- DIM3_DEGs_complete$gene[DIM3_DEGs_complete$diffexpressed != "NO"]
+ 
+plot1 <- ggplot(data=DIM3_DEGs_complete, aes(x=avg_log2FC, y=-log10(p_val_adj), col=diffexpressed, label=delabel)) + 
+              geom_point() + 
+              theme_minimal() +
+              geom_vline(xintercept=c(-0.5, 0.5), col="red") +
+              geom_hline(yintercept=-log10(0.05), col="red") +
+              scale_color_manual(values=c("#0C62AF", "black", "#B14311")) +
+              ylim(0,300) +
+              xlim(0, 1) +
+              geom_text_repel() +
+              theme(text = element_text(size = 20)) +       
+              theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
+print(plot1)
+
+#Fig3.k
+#Vav3
+Featureplot_Vav3<- FeaturePlot(Microglia_Subclustering, features = "Vav3", cols = colfunc(20), pt.size = 4) + NoAxes() + NoLegend() + ggtitle("Vav3 Gene" + theme(axis.title = element_blank()))
+Featureplot_Vav3 <- Featureplot_Vav3 + xlab("UMAP 1") +ylab("UMAP 2")
+ggdraw() + draw_plot(Featureplot_Vav3, x = 0, y = 0, width = 1.0, height = 1.0)
+
+#Gda
+Featureplot_Gda <- FeaturePlot(Microglia_Subclustering, features = "Pde7b", cols = colfunc(20), pt.size = 4) + NoAxes() + NoLegend() + ggtitle("Gda Gene" + theme(axis.title = element_blank()))
+Featureplot_Gda <- Featureplot_Gda + xlab("UMAP 1") +ylab("UMAP 2")
+ggdraw() + draw_plot(Featureplot_Gda, x = 0, y = 0, width = 1.0, height = 1.0)
+
+#Epas1
+Featureplot_Epas1 <- FeaturePlot(Microglia_Subclustering, features = "Epas1", cols = colfunc(20), pt.size = 4) + NoAxes() + NoLegend() + ggtitle("Epas1 Gene" + theme(axis.title = element_blank()))
+Featureplot_Epas1 <- Featureplot_Epas1 + xlab("UMAP 1") +ylab("UMAP 2")
+ggdraw() + draw_plot(Featureplot_Epas1, x = 0, y = 0, width = 1.0, height = 1.0)
+
+#Pde7b
+Featureplot_Pde7b <- FeaturePlot(Microglia_Subclustering, features = "Pde7b", cols = colfunc(20), pt.size = 4) + NoAxes() + NoLegend() + ggtitle("Pde7b Gene" + theme(axis.title = element_blank()))
+Featureplot_Pde7b <- Featureplot_Pde7b + xlab("UMAP 1") +ylab("UMAP 2")
+ggdraw() + draw_plot(Featureplot_Pde7b, x = 0, y = 0, width = 1.0, height = 1.0)
+
+#Fig3.m
+#Lipid Binding and Metabolism
+Genotype_comparison_different <- VlnPlot(Microglia_Subclustering, features = c("Apoe", "Ctsd", "Psap", "Vmp1", "Iqgap2", "Aoah", "Cd300lf", "Lyz2"), fill.by = "ident", cols = genotype_colors, group.by = "combined.genotype", stack = TRUE, flip = TRUE, pt.size = 0) + RotatedAxis()  + NoLegend() + ggtitle("Genotype_comparison_different "+ theme(axis.title = element_blank(),  axis.title.x = element_blank(), axis.title.y = element_blank()))
+ggdraw() + draw_plot(Genotype_comparison_different, x = 0, y = 0, width = 1.0, height = 1.0)
+```
+
+#Session Info
+```{r, echo=TRUE, warning=FALSE, error=FALSE, message=FALSE}
+sessionInfo()
+```

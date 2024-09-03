@@ -1,0 +1,194 @@
+---
+title: "Figure 2"
+author: "Greg Duncan, Katie Emberley and Jonathan Nelson"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document: 
+    toc: yes
+    toc_depth: 3
+    toc_float: true
+    number_sections: yes
+    theme: bootstrap
+    df_print: paged
+    code_folding: hide
+    highlight: pygments
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load Packages
+```{r load new packages, echo=TRUE, error=FALSE, message=FALSE, warning=FALSE}
+
+if (!require("knitr")) {install.packages("knitr"); require("knitr")}
+if (!requireNamespace('BiocManager', quietly = TRUE)) {install.packages('BiocManager'); require("BiocManager")}
+if (!require("dplyr")) {install.packages("dplyr"); require("dplyr")}
+if (!require("stringr")) {install.packages("stringr"); require("stringr")}
+if (!require("SeuratObject")) {install.packages("SeuratObject"); require("SeuratObject")}
+if (!require("Seurat")) {install.packages("Seurat"); require("Seurat")}
+if (!require("sctransform")) {install.packages("sctransform"); require("sctransform")}
+if (!require("glmGamPoi")) {BiocManager::install('glmGamPoi'); require("glmGamPoi")}
+if (!require("patchwork")) {install.packages("patchwork"); require("patchwork")}
+if (!require("ggplot2")) {install.packages("ggplot2"); require("ggplot2")}
+if (!require("EnhancedVolcano")) {BiocManager::install('EnhancedVolcano'); require("EnhancedVolcano")}
+if (!require("DESeq2")) {BiocManager::install('DESeq2'); require("DESeq2")}
+if (!require("tidyverse")) {install.packages("tidyverse"); require("tidyverse")}
+if (!require("RColorBrewer")) {install.packages("RColorBrewer"); require("RColorBrewer")}
+if (!require("car")) {install.packages("car"); require("car")}
+if (!require("openxlsx")) {install.packages("openxlsx"); require("openxlsx")}
+if (!require("readxl")) {install.packages("readxl"); require("readxl")}
+if (!require("ggrepel")) {install.packages("ggrepel"); require("ggrepel")}
+if (!require("gghighlight")) {install.packages("gghighlight"); require("gghighlight")}
+if (!require("ggpmisc")) {install.packages("ggpmisc"); require("ggpmisc")}
+if (!require("data.table")) {install.packages("data.table"); require("data.table")}
+if (!require("here")) {install.packages("here"); require("here")}
+if (!require("NatParksPalettes")) {install.packages("NatParksPalettes"); require("NatParksPalettes")}
+if (!require("sc")) {install.packages("NatParksPalettes"); require("NatParksPalettes")}
+if (!require("cowplot")) {install.packages("cowplot"); require("cowplot")}
+if (!require("patchwork")) {install.packages("patchwork"); require("patchwork")} 
+if (!require("scCustomize")) {install.packages("scCustomize"); require("scCustomize")} 
+```
+
+# Set Seed
+This ensures the knit file reflects the console. 
+```{r}
+set.seed(224)
+```
+
+#LoadRDS and Making colors
+```{r echo=TRUE, error=FALSE, message=FALSE, warning=FALSE, fig.align = 'center'}
+#Load Seurat Object
+FINAL_ON.Combined_no7_clean_meta <- readRDS(here("Outputs","ON_Combined_Final.rds")) 
+
+#Change colors to default
+genotype_colors <- c('Control' = "#808080",
+                    'PLP Cre+' = "#0167A2",
+                    'Sox10 Cre+' = "#CB7122")
+
+genotype_colors <- genotype_colors[order(as.integer(names(genotype_colors)))]
+
+scales::show_col(genotype_colors)
+
+#Set a color gradient for UMAPs
+colfunc <- colorRampPalette(c("grey90", "red4"))
+colfunc(20)
+
+# Number of Cells - should be 49806
+nrow(FINAL_ON.Combined_no7_clean_meta@meta.data)
+
+#Ensure Default assay is RNA
+DefaultAssay(FINAL_ON.Combined_no7_clean_meta) <- "RNA"
+```
+
+#All nuclei Fig2b, Fig2c
+```{r echo=TRUE, error=FALSE, message=FALSE, warning=FALSE, fig.align = 'center'}
+
+#Overall Dimplot with respective titles and legend labels
+#Fig2.b
+Dimplot_Clusters <- DimPlot(FINAL_ON.Combined_no7_clean_meta, reduction = "umap", cols = natparks.pals("Torres", 14), pt.size = 0.5, label = FALSE) + NoLegend() + NoAxes() + ggtitle("Overall Clusters" + theme(axis.title = element_blank()))
+Dimplot_Clusters <- Dimplot_Clusters + xlab("UMAP 1") +ylab("UMAP 2")
+ggdraw() + draw_plot(Dimplot_Clusters, x = 0, y = 0, width = 1.0, height = 1.0)
+
+#Fig2.c
+DotPlot(FINAL_ON.Combined_no7_clean_meta, features = c("Sox10", "Pdgfra", "Gpr17", "Tcf7l2", "Mobp", "Anln", "Syt4", "Csf1r", "Itk", "Gfap", "Ptgds", "Slc47a1",  "Pecam1", "Pdgfrb"), cols = c("cadetblue1", "darkred"), scale.by = "radius", dot.scale = 20) + coord_flip() + RotatedAxis() + ggtitle("Cell markers VlnPlot"+ theme(axis.title = element_blank(),  axis.title.x = element_blank(), axis.title.y = element_blank(), axis.text = element_text(size = 20))) 
+```
+
+# OL Lineage
+```{r echo=TRUE, error=FALSE, message=FALSE, warning=FALSE, fig.height = 3, fig.width = 4, fig.align = 'center'}
+#Load the subset oligolineage subcluster
+ON.OL.f <- readRDS(here("Outputs","Subclusters", "ON_Oligolineage.rds")) 
+
+#Fig2.d
+#Sox10
+Featureplot_Sox10_Gene <- FeaturePlot(ON.OL.f, features = "Sox10", cols = colfunc(20), pt.size = 2) + NoAxes() + NoLegend() + ggtitle("Sox10 Gene" + theme(axis.title = element_blank()))
+Featureplot_Sox10_Gene <- Featureplot_Sox10_Gene + xlab("UMAP 1") +ylab("UMAP 2")
+ggdraw() + draw_plot(Featureplot_Sox10_Gene, x = 0, y = 0, width = 1.0, height = 1.0)
+
+#PDGFRa
+Featureplot_Pdgfra_Gene <- FeaturePlot(ON.OL.f, features = "Pdgfra", cols = colfunc(20), pt.size = 2) + NoAxes() + NoLegend() + ggtitle("Pdgfra Gene" + theme(axis.title = element_blank()))
+Featureplot_Pdgfra_Gene <- Featureplot_Pdgfra_Gene + xlab("UMAP 1") +ylab("UMAP 2")
+ggdraw() + draw_plot(Featureplot_Pdgfra_Gene, x = 0, y = 0, width = 1.0, height = 1.0)
+
+#Gpr17
+Featureplot_Gpr17_Gene <- FeaturePlot(ON.OL.f, features = "Gpr17", cols = colfunc(20), pt.size = 2) + NoAxes() + NoLegend() + ggtitle("Gpr17 Gene" + theme(axis.title = element_blank()))
+Featureplot_Gpr17_Gene <- Featureplot_Gpr17_Gene + xlab("UMAP 1") +ylab("UMAP 2")
+ggdraw() + draw_plot(Featureplot_Gpr17_Gene, x = 0, y = 0, width = 1.0, height = 1.0)
+
+#Tcf7L2
+Featureplot_Tcf7l2_Gene <- FeaturePlot(ON.OL.f, features = "Tcf7l2", cols = colfunc(20), pt.size = 2) + NoAxes() + NoLegend() + ggtitle("Tcf7L2 Gene" + theme(axis.title = element_blank()))
+Featureplot_Tcf7l2_Gene <- Featureplot_Tcf7l2_Gene + xlab("UMAP 1") +ylab("UMAP 2")
+ggdraw() + draw_plot(Featureplot_Tcf7l2_Gene, x = 0, y = 0, width = 1.0, height = 1.0)
+
+#MOBP
+Featureplot_Mobp_Gene <- FeaturePlot(ON.OL.f, features = "Mobp", cols = colfunc(20), pt.size = 2) + NoAxes() + NoLegend() + ggtitle("MOBP Gene" + theme(axis.title = element_blank()))
+Featureplot_Mobp_Gene <- Featureplot_Mobp_Gene + xlab("UMAP 1") +ylab("UMAP 2")
+ggdraw() + draw_plot(Featureplot_Mobp_Gene, x = 0, y = 0, width = 1.0, height = 1.0)
+
+#Anillin
+Featureplot_Anln_Gene <- FeaturePlot(ON.OL.f, features = "Anln", cols = colfunc(20), pt.size = 2) + NoAxes() + NoLegend() + ggtitle("Anln Gene" + theme(axis.title = element_blank()))
+Featureplot_Anln_Gene <- Featureplot_Anln_Gene + xlab("UMAP 1") +ylab("UMAP 2")
+ggdraw() + draw_plot(Featureplot_Anln_Gene, x = 0, y = 0, width = 1.0, height = 1.0)
+
+#Fig2.e
+Dimplot_All_OL <- DimPlot(ON.OL.f, reduction = "umap", group.by = "combined.genotype", shuffle = TRUE, cols = genotype_colors, pt.size = 2) + NoLegend() + NoAxes() + ggtitle("Dimplot all OL Lineage" + theme(axis.title = element_blank()))
+Dimplot_All_OL <- Dimplot_All_OL + xlab("UMAP 1") +ylab("UMAP 2")
+ggdraw() + draw_plot(Dimplot_All_OL, x = 0, y = 0, width = 1.0, height = 1.0)
+
+#Highlight Cells from genotypes
+ON.OL.f <- SetIdent(ON.OL.f, value = ON.OL.f@meta.data$combined.genotype)
+PLP_highlight <- WhichCells(ON.OL.f, idents = c("PLP Cre+"))
+Sox10_highlight <- WhichCells(ON.OL.f, idents = c( "Sox10 Cre+"))
+Control_highlight <- WhichCells(ON.OL.f, idents = c( "Control"))
+
+#Dimplot Highlight Control
+Dimplot_Highlight_Control <-DimPlot(ON.OL.f, group.by="combined.genotype", cells.highlight= Control_highlight, cols.highlight = "#808080", sizes.highlight = 4, cols= "grey90", pt.size =4)+ NoLegend() + ggtitle("PLP Highlight" + theme(axis.title = element_blank()))
+Dimplot_Highlight_Control <- Dimplot_Highlight_Control + xlab("UMAP 1") +ylab("UMAP 2")
+print(Dimplot_Highlight_Control)
+
+#Dimplot Highlight PLP
+Dimplot_Highlight_PLP <-DimPlot(ON.OL.f, group.by="combined.genotype", cells.highlight= PLP_highlight, cols.highlight = "#0167A2", sizes.highlight = 4, cols= "grey90", pt.size = 4)+ NoLegend() + ggtitle("PLP Highlight" + theme(axis.title = element_blank()))
+Dimplot_Highlight_PLP <- Dimplot_Highlight_PLP + xlab("UMAP 1") +ylab("UMAP 2")
+print(Dimplot_Highlight_PLP)
+
+#Dimplot Highlight Sox10
+Dimplot_Highlight_Sox10 <-DimPlot(ON.OL.f, group.by="combined.genotype", cells.highlight= Sox10_highlight, cols.highlight = "#CB7122", sizes.highlight = 4,  cols= "grey90", pt.size = 4)+ NoLegend() + ggtitle("Sox10 Highlight" + theme(axis.title = element_blank()))
+Dimplot_Highlight_Sox10 <- Dimplot_Highlight_Sox10 + xlab("UMAP 1") +ylab("UMAP 2")
+print(Dimplot_Highlight_Sox10)
+
+#Fig2g
+Myelin.markers <- VlnPlot(ON.OL.f, features = c("Anln", "Mog",  "Mag", "Trf", "Mobp", "Mbp", "Plp1", "Aspa"), fill.by = "ident", cols = genotype_colors, group.by = "combined.genotype", stack = TRUE, flip = TRUE, pt.size = 0) + RotatedAxis()  + NoLegend() + ggtitle("Cell markers VlnPlot"+ theme(axis.title = element_blank(),  axis.title.x = element_blank(), axis.title.y = element_blank()))
+ggdraw() + draw_plot(Myelin.markers, x = 0, y = 0, width = 1.0, height = 1.0)
+```
+
+
+# Figure 2f Source Data
+```{r echo=TRUE, warning=FALSE, error=FALSE, results = FALSE, message=FALSE, fig.align = 'center'}
+# Get numbers of cells per replicate All
+ON_Combined_list <- unlist(levels(FINAL_ON.Combined_no7_clean_meta@meta.data$named.clusters))
+total.replicate.meta.data <- FINAL_ON.Combined_no7_clean_meta@meta.data %>% as.data.table
+total.replicate.meta.data[, .N, by = c("Replicate", "named.clusters")] %>% kable()
+
+#Get numbers of cells per replicate OL
+ON.OL_Combined_list <- unlist(levels(ON.OL.f@meta.data$named.clusters))
+ON.OL.replicate.meta.data <- ON.OL.f@meta.data %>% as.data.table
+ON.OL.replicate.meta.data[, .N, by = c("Replicate", "named.clusters")] %>% kable()
+
+#Prop Table All Lineage
+t2 <- table(Idents(FINAL_ON.Combined_no7_clean_meta), FINAL_ON.Combined_no7_clean_meta$combined.genotype)
+
+t2
+
+prop.t2 <- prop.table(t2, margin = 2)
+t2 <- as.data.frame(t2)
+colnames(t2) <- c('Cell_type', 'combined.genotype', 'Frequency')
+
+prop.t2
+
+```
+
+# Session Info
+```{r sessioninfo, echo=TRUE, warning=FALSE, error=FALSE, message=FALSE, fig.align = 'center'}
+
+sessionInfo()
+```
+
